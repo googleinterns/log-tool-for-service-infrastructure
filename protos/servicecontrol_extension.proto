@@ -1,0 +1,1158 @@
+// Copyright 2016-2020 Google LLC. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// GWS log extension proto for OnePlatform Service Control (Chemist)
+syntax = "proto3";
+ 
+package logs.servicecontrol;
+ 
+import "apiserving/servicecontrol/backend/proto/backend.proto";
+import "google/api/metric.proto";
+import "google/api/servicecontrol/v1/check_error.proto";
+import "google/api/servicecontrol/v1/quota_controller.proto";
+import "google/logging/type/log_severity.proto";
+import "google/protobuf/timestamp.proto";
+import 'google/rpc/code.proto';
+import "storage/datapol/annotations/proto/semantic_annotations.proto";
+ 
+option java_package = "com.google.api.servicecontrol.log";
+option (datapol.file_vetting_status) = "latest";
+option cc_enable_arenas = true;
+ 
+// GWSLog extension for OnePlatform Service Control (Chemist)
+// This is derived from /google3/google/api/servicecontrol/v1/operation.proto
+message ServiceControlExtension {
+  // Identity of the service. For example 'fortuneteller.example.com'.
+  string service_name = 1
+      [(datapol.semantic_type) = ST_USER_CONTENT, enforce_utf8 = false];
+ 
+  // The operations to be logged.
+  repeated OperationInfo operations = 2;
+ 
+  // Backend type.
+  apiserving.servicecontrol.BackendType backend_type = 3;
+ 
+  // The RPC response status.
+  StatusInfo status = 4;
+ 
+  // The Check errors. Valid only when the method is CHECK or REPORT.
+  repeated CheckErrorInfo check_errors = 5;
+ 
+  // Used by delta billing to group related metrics and compute
+  // "resource usage x duration" from snapshots and deltas.
+  // Not filled as of 12/2017.
+  repeated AreaUnderCurveParamsInfo area_under_curve_params = 6
+      [deprecated = true];
+ 
+  // The method that a request invokes (e.g. CHECK, REPORT).
+  Method method = 7;
+ 
+  // The Quota metrics which store the quota usage from quota response.
+  repeated MetricValueSetInfo response_quota_metrics = 8;
+ 
+  // The Quota errors. Valid only when the method is defined in QuotaController.
+  // http://google3/google/api/servicecontrol/v1/quota_controller.proto.
+  repeated QuotaErrorInfo quota_errors = 9;
+ 
+  // For Check, the project_settings returned in CheckResponse.
+  ProjectSettingsInfo project_settings = 10;
+ 
+  // For Check, the check_info returned in CheckResponse.
+  CheckInfo check_info = 11;
+ 
+  // Whether the request has error injection or not.
+  bool error_injected = 12;
+ 
+  // For Check, information relevant to Secure GCP API processing.
+  SecurityPolicyInfo security_policy_info = 13;
+ 
+  // The ID of the service config used for serving the request. It is also
+  // the service_config_id contained in the response.
+  string service_config_id = 14;
+ 
+  //  RPC Deadline. Only available when the RPC object has deadline specified.
+  int64 rpc_deadline_ms = 15;
+ 
+  // RPC start time. It is the time when the server's network thread started
+  // processing this RPC.
+  int64 rpc_start_time_ms = 16;
+ 
+  // Whether the request was served by Chemist HA partition
+  // (go/chemist-ha-partition).
+  bool is_ha_partition = 17;
+ 
+  // For Check, information extracted from credential mint.
+  CredentialMintInfo credential_mint_info = 18;
+ 
+  // For Check, information extracted from DAT.
+  DatInfo dat_info = 19;
+ 
+  // The ID of service config specified in incoming request.
+  // Empty if no explicit service config id was specified.
+  string request_service_config_id = 20;
+ 
+  // For Check, information relevant to Location Policy processing.
+  LocationPolicyInfo location_policy_info = 21;
+ 
+  // Indicates whether original CheckRequest had `skip_activation_check` flag
+  // set to true.
+  bool skip_activation_check = 22;
+ 
+  // For Check, information relevant to Org Policy processing.
+  OrgPolicyInfo org_policy_info = 23;
+ 
+  // Source of the request. This field indicates where the Chemist request comes
+  // from.
+  enum RequestSource {
+    UNSPECIFIED = 0;
+    UNRESTRICTED_VPC_NETWORK = 1;
+    RESTRICTED_VPC_NETWORK = 2;
+  }
+  RequestSource request_source = 24;
+ 
+  // The network project number if the Chemist request comes from a VPC network
+  // directly. If this field is not empty, the request_source field should be
+  // either UNRESTRICTED_VPC_NETWORK or RESTRICTED_VPC_NETWORK.
+  string request_network_project = 25;
+ 
+  // Sequence number of service config used for handling the request.
+  // This field is based on
+  // ChemistConfigVersion.config_id_sequence_number.sequence_number.
+  int64 service_config_sequence_number = 26;
+ 
+  // Timestamp of the creation time of the partner service data that is used to
+  // handling the request.
+  Timestamp partner_service_data_created_time = 27
+      [(datapol.semantic_type) = ST_TIMESTAMP];
+ 
+  // Bitwise flag to hold temporary flags and behaviors which are mostly used
+  // for debug purpose. Each bit represents one debugging purpose. Details are
+  // documented in apiserving::servicecontrol::ProtoLogger::ToDebugMask method.
+  uint32 debug_mask = 28;
+ 
+  // This field stores the StatusErrorPayload::error_detail content which will
+  // be stripped while generating the check response. This internal debug info
+  // contains the error message to indicate the root cause of a check failure.
+  // e.g. '[Cached] Cannot resolve project number at Clientauthconfig
+  // (AppIdentity) from android:example.com:Certificate'.
+  string internal_debug_info = 29 [(datapol.semantic_type) = ST_DEBUG_INFO];
+ 
+  // Describes attributes about the operation being executed by the service.
+  repeated AttributeContextInfo attribute_contexts = 30;
+ 
+  // Describes the resources and the policies applied to each resource.
+  repeated ResourceInfo resources = 31;
+ 
+  // Whether the request has producer access.
+  bool has_producer_access = 32;
+ 
+  // The Google RPC status.
+  GoogleRpcStatusInfo google_rpc_status = 33;
+ 
+  // The P4SA authorization related info. Will be set only if P4SA authorization
+  // was attempted.
+  P4SAInfo p4sa_info = 34;
+}
+ 
+// Describes an operation to be logged.
+message OperationInfo {
+  // Identity of the operation. It should be unique within the scope of the
+  // service. UUID version 4 is recommended, though not required.
+  string operation_id = 1
+      [(datapol.semantic_type) = ST_SESSION_ID, enforce_utf8 = false];
+ 
+  // Fully qualified name of the operation.
+  // Examples:
+  // rpc method name: google.example.library.v1.LibraryService.CreateShelf
+  // Service defined operation name: compute.googleapis.com.InstanceHearbeat
+  string operation_name = 2
+      [(datapol.semantic_type) = ST_USER_CONTENT, enforce_utf8 = false];
+ 
+  // Identity of the consumer project who is using the managed service.
+  // This is the original input consumer project ID into the Chemist APIs, not
+  string consumer_project_id = 3
+      [(datapol.semantic_type) = ST_IDENTIFYING_ID, enforce_utf8 = false];
+ 
+  reserved 4;  // encrypted_labels
+ 
+  // Start time of the operation.
+  Timestamp start_time = 5 [(datapol.semantic_type) = ST_TIMESTAMP];
+ 
+  // End time of the operation.
+  Timestamp end_time = 6 [(datapol.semantic_type) = ST_TIMESTAMP];
+ 
+  // Represents log entries in the request.
+  repeated LogEntryInfo log_entries = 7;
+ 
+  // Represents metric value sets about this operation. Each MetricValueSetInfo
+  // corresponds to a metric, which is defined in the service configuration.
+  repeated MetricValueSetInfo metric_value_sets = 8;
+ 
+  // Randomly generated unique identifier of the client instance.
+  // Not filled as of 09/2019.
+  string client_uid = 13 [
+    (datapol.semantic_type) = ST_PSEUDONYMOUS_ID,
+    enforce_utf8 = false,
+    deprecated = true
+  ];
+ 
+  // True if the operation being reported is of high value.
+  bool high_value = 14;
+ 
+  // Service agent associated with the Chemist client that handled the
+  // operation.
+  string service_agent = 15;
+ 
+  // Platform associated with the Chemist client that handled the operation.
+  string platform = 16;
+ 
+  reserved 17;  // encrypted_user_labels
+ 
+  // Labels describing the operation.
+  repeated Label labels = 19 [
+    (datapol.semantic_type) = ST_KEY_VALUE_PAIR,
+    (datapol.field_details) = { semantic_type: ST_PERSONAL_DATA }
+  ];  // TEMPORARY LOGS ONLY.
+ 
+  // User defined labels associated with the resource that this operation
+  // corresponds to.
+  repeated Label user_labels = 20 [
+    (datapol.semantic_type) = ST_KEY_VALUE_PAIR,
+    (datapol.field_details) = { semantic_type: ST_PERSONAL_DATA }
+  ];  // TEMPORARY LOGS ONLY.
+ 
+  reserved 21;  // resource_container
+ 
+  // Quota mode of the operation. Set only if operation is quota request in
+  // Check(), Report(), AllocateQuota() or ReleaseQuota() call.
+  google.api.servicecontrol.v1.QuotaOperation.QuotaMode quota_mode = 22;
+ 
+  // The protocol being used by the backend to handle requests/responses.
+  string backend_protocol = 23;
+ 
+  // Quota type. Set only if operation is quota request in Check(), Report(),
+  // AllocateQuota() or ReleaseQuota() call.
+  enum QuotaType {
+    UNSPECIFIED_TYPE = 0;
+    ALLOCATION = 1;
+    RATE = 2;
+  }
+  QuotaType quota_type = 24;
+ 
+  // Quota backend. Set only if operation is quota request in Check(), Report(),
+  // AllocateQuota() or ReleaseQuota() call.
+  enum QuotaBackend {
+    UNSPECIFIED_BACKEND = 0;
+    PRECISE_QUOTA_SERVER = 1;
+    QUOTA_SERVER = 2;
+  }
+  QuotaBackend quota_backend = 25;
+ 
+  // Project number of the consumer project who is using the managed service.
+  // consumer_number holds the same value for project consumers.
+  int64 consumer_project_number = 26
+      [(datapol.semantic_type) = ST_GOOGLE_RELATIONSHIP_ID];
+ 
+  // Represents individual resource.
+  message ResourceInfo {
+    // The identifier of the parent of this resource instance.
+    // Must be in one of the following formats:
+    //     - “projects/<project-id or project-number>”
+    //     - “folders/<folder-id>”
+    //     - “organizations/<organization-id>”
+    string resource_container = 1
+        [(datapol.semantic_type) = ST_GOOGLE_RELATIONSHIP_ID];
+ 
+    // Name of the resource. This is used for auditing purposes.
+    string resource_name = 2 [(datapol.semantic_type) = ST_USER_CONTENT];
+ 
+    // The location of the resource. If not empty, the resource will be checked
+    // against location policy. The value must be a valid zone, region or
+    // multiregion. For example: "europe-west4" or "northamerica-northeast1-a"
+    string resource_location = 3 [
+      (datapol.semantic_type) = ST_LOCATION,
+      (datapol.location_qualifier) = { non_user_location: true }
+    ];
+  }
+ 
+  // Identity of the parent of a resource in the resource hierarchy (can be
+  // more than one).
+  repeated ResourceInfo resources = 27;
+ 
+  // Bitwise flag to indicate which of the hierarchy levels are part of this
+  // quota request.
+  //   ORGANIZATION = 0x1,
+  //   FOLDER = 0x2,
+  //   PROJECT = 0x4
+  uint32 quota_hierarchy_mask = 28;
+ 
+  enum ConsumerType {
+    UNSPECIFIED_CONSUMER_TYPE = 0;
+    PROJECT = 1;
+    FOLDER = 2;
+    ORGANIZATION = 3;
+    SERVICE_SPECIFIC = 4;
+  }
+  ConsumerType consumer_type = 29;
+ 
+  // The string identifier of the consumer. This is the original input consumer
+  // ID to Chemist APIs, not the parsed consumer ID returned from Elysium.
+  string input_consumer_id = 30 [(datapol.semantic_type) = ST_IDENTIFYING_ID];
+ 
+  // The parsed numeric number identifier of the consumer.
+  int64 consumer_number = 31
+      [(datapol.semantic_type) = ST_GOOGLE_RELATIONSHIP_ID];
+ 
+  // Details about the Cloud Trace spans.
+  repeated TraceSpan trace_spans = 32;
+ 
+  // Sender id, which will be set when report monitoring metrics to Stackdriver,
+  // of the metric report operation.
+  string report_sender_id = 33
+      [(datapol.field_details) = { semantic_type: ST_PERSONAL_DATA }];
+ 
+  // True if the operation report monitoring metrics to Stackdriver, otherwise
+  // false.
+  bool report_metrics_to_stackdriver = 34;
+}
+ 
+// Represents a log entry in the request.
+message LogEntryInfo {
+  // The time when the event described by the log entry occurred,
+  // This is optional. If omitted, the Operation's end_time value is used.
+  Timestamp log_time = 1 [(datapol.semantic_type) = ST_TIMESTAMP];
+ 
+  reserved 2;  // encrypted_labels
+ 
+  // The size of the log payload in bytes.
+  int32 payload_size = 3;
+ 
+  // The name of the log. For example "AdminLog", "ErrorLog", etc.
+  string log_name = 4 [enforce_utf8 = false];
+ 
+  // The severity level of the log entry.
+  google.logging.type.LogSeverity severity = 5;
+ 
+  // Labels describing the log entry.
+  repeated Label labels = 6 [
+    (datapol.semantic_type) = ST_KEY_VALUE_PAIR,
+    (datapol.field_details) = { semantic_type: ST_PERSONAL_DATA }
+  ];  // TEMPORARY LOGS ONLY.
+ 
+  // The type of payload:
+  // http://google3/google/logging/v2/log_entry.proto?l=70-95&rcl=261961554
+  string payload_type = 7;
+}
+ 
+// Represents a set of metric values in the same metric.
+message MetricValueSetInfo {
+  // The metric name defined in the service configuration.
+  string metric_name = 1 [enforce_utf8 = false];
+ 
+  // The values in this metric.
+  repeated MetricValueInfo metric_values = 2;
+ 
+  // The kind of metric.
+  google.api.MetricDescriptor.MetricKind metric_kind = 3;
+ 
+  // The unit of metric. See http://cs/google3/google/api/metric.proto
+  // Note: This field is no longer read by cloud billing.
+  // The unit is instead passed as a label with the key
+  // "cloudbilling.googleapis.com/metric_unit"
+  string metric_unit = 4 [deprecated = true];
+}
+ 
+// Represents a value in a metric.
+message MetricValueInfo {
+  reserved 1;  // encrypted_labels
+ 
+  // The start of the time period over which this value's measurement
+  // applies.
+  Timestamp start_time = 2 [(datapol.semantic_type) = ST_TIMESTAMP];
+ 
+  // The end of the time period over which this value's measurement
+  // applies.
+  Timestamp end_time = 3 [(datapol.semantic_type) = ST_TIMESTAMP];
+ 
+  // The value of the metric.
+  // This value is given by the service provider in the request. For a valid
+  // metric value, its name must be defined in the service config, and its
+  // data type must agree with the metric definition in the service config.
+  // However the log may contain invalid metric values for diagnostics purpose
+  // if invalid metric values were given by the service provider.
+  oneof value {
+    // A boolean value.
+    bool bool_value = 4;
+ 
+    // A signed 64-bit integer value.
+    int64 int64_value = 5;
+ 
+    // A double precision floating point value.
+    double double_value = 6;
+ 
+    // The length of the text if a text string value is given in the request.
+    int32 string_value_length = 7;
+ 
+    // True if a distribution value is given in the request.
+    bool has_distribution_value = 8;
+ 
+    // A money value.
+    Money money_value = 9;
+ 
+    // A distribution value.
+    Distribution distribution_metric_value = 11;
+  }
+ 
+  // Labels describing the metric value.
+  repeated Label labels = 10 [
+    (datapol.semantic_type) = ST_KEY_VALUE_PAIR,
+    (datapol.field_details) = { semantic_type: ST_PERSONAL_DATA }
+  ];  // TEMPORARY LOGS ONLY.
+}
+ 
+// Represents an amount of money with its currency type.
+message Money {
+  // The 3-letter currency code defined in ISO 4217.
+  string currency_code = 1 [enforce_utf8 = false];
+ 
+  // The whole units of the amount.
+  // For example if currency_code=="USD", then 1 unit is one US dollar.
+  int64 units = 2;
+ 
+  // Number of nano (10^-9) units of the amount.
+  // The value must be between -999,999,999 and +999,999,999 inclusive.
+  // If units field is positive, this value must be positive or zero.
+  // If units field is zero, this value can be positive, zero, or negative.
+  // If units field is negative, this value must be negative or zero.
+  // For example $-1.75 is represetned as units=-1 and nanos=-750,000,000.
+  int32 nanos = 3;
+}
+ 
+// A Timestamp represents a point in time independent of any time zone
+// or calendar, represented as seconds and fractions of seconds at
+// nanosecond resolution in UTC Epoch time. It is encoded using the
+// Proleptic Gregorian Calendar which extends the Gregorian calendar
+// backwards to year one. It is encoded assuming all minutes are 60
+// seconds long, i.e. leap seconds are "smeared" so that no leap second
+// table is needed for interpretation. Range is from
+// 0001-01-01T00:00:00Z to 9999-12-31T23:59:59.999999999Z.
+message Timestamp {
+  // Represents seconds of UTC time since Unix epoch
+  // 1970-01-01T00:00:00Z. Must be from from 0001-01-01T00:00:00Z to
+  // 9999-12-31T23:59:59Z inclusive.
+  int64 seconds = 1;
+ 
+  // Non-negative fractions of a second at nanosecond resolution. Negative
+  // second values with fractions must still have non-negative nanos values
+  // that count forward in time. Must be from 0 to 999,999,999
+  // inclusive.
+  int32 nanos = 2;
+}
+ 
+// Logged subset of the status message.
+message StatusInfo {
+  // Code. Please see util/task/codes.proto for possible values.
+  int32 code = 1;
+  // Detail message. Usually only present when code != 0.
+  string message = 2
+      [(datapol.semantic_type) = ST_DEBUG_INFO, enforce_utf8 = false];
+}
+ 
+// Check error info for a check request.
+message CheckErrorInfo {
+  // Code. Please see google/api/servicecontrol/v1/check_error.proto.
+  google.api.servicecontrol.v1.CheckError.Code code = 1;
+  // The error detail. When the error code is `UNAVAILABLE`,
+  // this field contains the address of the unreachable server.
+  string detail = 2
+      [(datapol.semantic_type) = ST_DEBUG_INFO, enforce_utf8 = false];
+ 
+  // This field corresponds to the
+  // google.api.servicecontrol.v1.CheckError.status field for check error.
+  StatusInfo status = 3;
+}
+ 
+// Quota errors. Valid only when the method is defined in QuotaController.
+message QuotaErrorInfo {
+  // Code. Please see google/api/servicecontrol/v1/quota_controller.proto.
+  google.api.servicecontrol.v1.QuotaError.Code code = 1;
+  // Subject to whom this error applies.
+  string subject = 2 [(datapol.semantic_type) = ST_DEBUG_INFO];
+  // Free-form text that provides details on the cause of the error.
+  string description = 3 [(datapol.semantic_type) = ST_DEBUG_INFO];
+}
+ 
+// AreaUnderCurveParamsInfo groups the metrics relevant to generating
+// duration based metric from base (snapshot) metric and delta
+// (change) metric.  The generated metric has two dimensions:
+//    resource usage metric and the duration the metric applies.
+//
+// Essentially the generated metric is the Area Under Curve(AUC) of
+// the "duration - resource" usage curve. This AUC metric is readily
+// appliable to billing since "billable resource usage" depends on
+// resource usage and duration of the resource used.
+//
+// This class is not longer used and is deprecated as of 12/2017.
+message AreaUnderCurveParamsInfo {
+  // Total usage of a resource at a particular timestamp. This should be
+  // a GAUGE metric.
+  string snapshot_metric = 1;
+  // Change of resource usage at a particular timestamp. This should a
+  // DELTA metric.
+  string change_metric = 2;
+  // Metric generated from snapshot_metric and change_metric. This
+  // is also a DELTA metric.
+  string generated_metric = 3;
+}
+ 
+// The RPC method of a request to service control.
+enum Method {
+  // Unknown.
+  UNKNOWN_METHOD = 0;
+ 
+  // The Check method.
+  CHECK = 1;
+ 
+  // The Report method.
+  REPORT = 2;
+ 
+  // The Allocate Quota method.
+  ALLOCATE_QUOTA = 3;
+ 
+  // The Release Quota method.
+  RELEASE_QUOTA = 4;
+ 
+  // The Start Reconciliation method.
+  START_RECONCILIATION = 5;
+ 
+  // The End Reconciliation method.
+  END_RECONCILIATION = 6;
+ 
+  // The Chemist V2 Check method.
+  V2_CHECK = 7;
+ 
+  // The Chemist V2 Report method.
+  V2_REPORT = 8;
+}
+ 
+// Represents a label that contains a key and a value
+message Label {
+  // The key of the label.
+  string key = 1 [
+    (datapol.semantic_type) = ST_KEY,
+    (datapol.qualifier) = { related_field: 2 }
+  ];  // TEMPORARY LOGS ONLY.
+ 
+  // The value of the label.
+  string value = 2 [
+    (datapol.semantic_type) = ST_VALUE,
+    (datapol.qualifier) = { related_field: 1 }
+  ];  // TEMPORARY LOGS ONLY.
+}
+ 
+// The project property.
+// see google/rpc/context/project_context.proto.
+message ProjectPropertyInfo {
+  // The name of the property.
+  string name = 1 [
+    (datapol.semantic_type) = ST_KEY,
+    (datapol.qualifier) = { related_field: 2 }
+  ];  // TEMPORARY LOGS ONLY.
+ 
+  // The values of the property. Contains at least one value.
+  repeated string values = 2 [
+    (datapol.semantic_type) = ST_VALUE,
+    (datapol.qualifier) = { related_field: 1 }
+  ];  // TEMPORARY LOGS ONLY.
+}
+ 
+// The context of the caller's project.
+// see google/rpc/context/project_context.proto.
+message ProjectContextInfo {
+  // Identifies the developer project associated with the calling application.
+  // A value of 0 indicates no project number is found.
+  uint64 project_number = 1
+      [(datapol.semantic_type) = ST_GOOGLE_RELATIONSHIP_ID];
+ 
+  // Identifies the ID of the caller project if non-empty.
+  string project_id = 2 [(datapol.semantic_type) = ST_IDENTIFYING_ID];
+ 
+  // Project properties retrieved from the project config.
+  repeated ProjectPropertyInfo properties = 3 [
+    (datapol.semantic_type) = ST_KEY_VALUE_PAIR,
+    (datapol.field_details) = { semantic_type: ST_PERSONAL_DATA }
+  ];  // TEMPORARY LOGS ONLY.
+ 
+  // The last read time of the project context. If missing, the last read failed
+  // for some reasons. This field can be used for detecting fail-open behaviors.
+  google.protobuf.Timestamp read_time = 4;
+}
+ 
+// Visibility information for the request.
+// see google/rpc/context/visibility_context.proto.
+message VisibilityContextInfo {
+  // The set of visibility labels applied to the request.
+  repeated string labels = 1;
+ 
+  // The last read time of the visibility context. If missing, the last read
+  // failed for some reasons. This field can be used for detecting fail-open
+  // behaviors.
+  google.protobuf.Timestamp read_time = 2;
+}
+ 
+// Project Settings returned in a CheckResponse.
+// see google/api/servicecontrol/v1/project_settings.proto.
+message ProjectSettingsInfo {
+  // The project properties of the given project that applies to the given
+  // service name.
+  ProjectContextInfo project_properties = 1;
+ 
+  // The visibility rules of the given project that applies to the given service
+  // name.
+  VisibilityContextInfo visibility = 2;
+}
+ 
+// Feedback data returned from the server during processing a Check request.
+// see google/api/servicecontrol/v1/service_controller.proto.
+message CheckInfo {
+  // A list of fields and label keys in the check request that are ignored by
+  // the server.
+  repeated string unused_arguments = 1
+      [(datapol.semantic_type) = ST_NOT_REQUIRED];
+}
+ 
+// Relevant information extracted from the ubermint.
+message CredentialMintInfo {
+  // Service identity attributes extracted from the mint.
+  ServiceIdentityAttributes mint_sa_attributes = 1;
+ 
+  // Delegation service identity attributes extracted from credential origin.
+  // TODO(kartiknm): rename to 'delegation_sa_attributes' to match DatInfo.
+  repeated ServiceIdentityAttributes credential_origin_sa_attributes = 2;
+ 
+  // Target service identity attributes extracted from credential origin.
+  ServiceIdentityAttributes target_sa_attributes = 3;
+ 
+  // TODO(b/137316365): remove this after the bug is fixed.
+  // Primary user Gaia Id when it differs from the one in the label.
+  string mismatched_primary_user_id = 4
+      [(datapol.semantic_type) = ST_GAIA_ID];  // TEMPORARY LOGS ONLY.
+ 
+  // TODO(b/137316365): remove this after the bug is fixed.
+  // Primary user email when it differs from the one in the label.
+  string mismatched_primary_user_email = 5
+      [(datapol.semantic_type) = ST_EMAIL_ID];  // TEMPORARY LOGS ONLY.
+}
+ 
+// Relevant information extracted from a DAT.
+message DatInfo {
+  // Delegation service identity attributes extracted from credential origin.
+  repeated ServiceIdentityAttributes delegation_sa_attributes = 1;
+ 
+  // Target service identity attributes extracted from credential origin.
+  ServiceIdentityAttributes target_sa_attributes = 2;
+}
+ 
+// Relevant information extracted from a mint's service identity attributes.
+message ServiceIdentityAttributes {
+  // Indicates whether this is a service account used by a Google first party
+  // service.
+  bool google_production = 1;
+ 
+  // Represents customer project, folder, or org that this service account is
+  // on behalf of.
+  string service_account_container = 2
+      [(datapol.semantic_type) = ST_GOOGLE_RELATIONSHIP_ID];
+ 
+  // The owner project number for this service account container.
+  int64 owner_project_number = 3
+      [(datapol.semantic_type) = ST_GOOGLE_RELATIONSHIP_ID];
+}
+ 
+// Information relevant to Secure GCP API processing.
+message SecurityPolicyInfo {
+  // Indicates whether Secure GCP API policy violation occurred with dry run
+  // mode enabled (which means no check errors).
+  bool dry_run_policy_violation = 1;
+ 
+  // The service control token info forwarded from previous
+  // Chemist checks. This info is included inside Chemist
+  // check request. If current Chemist check is the first
+  // hop, this info will be empty.
+  // see google3/apiserving/servicecontrol/proto/security/internal_token.proto
+  InternalServiceControlTokenInfo request_service_control_token = 2;
+ 
+  // Generated by current chemist check and will be passed
+  // with Chemist check response. This context will be
+  // forwarded to backends by ESF or directly retrieved from
+  // backends, and eventually consumed by IAM conditions check.
+  // see google3/security/credentials/proto/service_control_context.proto
+  ServiceControlSecurityContext service_control_security_context = 3;
+ 
+  reserved 4;  // container_ancestries
+ 
+  // Information about resource containers.
+  repeated SecurityContainerInfo resource_containers = 5;
+ 
+  // Information about network container.
+  SecurityContainerInfo network_container = 6;
+ 
+  // Whether a security policy was matched or not.
+  bool security_policy_matched = 7;
+ 
+  // Information about service account container.
+  SecurityContainerInfo service_account_container = 8;
+ 
+  // The code for the reason why corresponding check failed. This field will be
+  // set only for failed checks.
+  // This value corresponds to enum defined in
+  // google.cloud.audit.VpcServiceControlAuditMetadata.ViolationReason
+  int32 violation_reason = 9;
+ 
+  // Indicates whether there is a mismatch when security policy enforcement
+  // works in dual mode. Zero means no mismatch. Nonzero values will specify the
+  // type of the mismatch.
+  int32 mismatch = 10;
+ 
+  // Indicates whether `skip_vpc_service_controls_check` flag in the original
+  // CheckRequest was set to true and therefore entire VPC SC check was skipped.
+  bool skip_vpc_service_controls_check = 11;
+ 
+  // The additional info for security policy verification result. This value
+  // corresponds to enum class SecurityVerificationAdditionalInfo defined in
+  // apiserving/servicecontrol/backend/security_policy/security_verification_result.h
+  int32 security_verification_additional_info = 12;
+ 
+  // Indicates the potential VPC SC violation reason for dark launch security
+  // policies before actually enforcing them.
+  int32 dark_launch_violation_reason = 13;
+ 
+  // An unique identifier associated with this request that is rejected by
+  // security policies. The value of this field is same as the
+  // RequestParameters.uid field defined in
+  // apiserving/servicecontrol/backend/logging/audit_logger_request_parameters.h
+  string unique_id = 14 [(datapol.semantic_type) = ST_SESSION_ID];
+}
+ 
+// Internal service control token info only used by Chemist.
+// It allows forwarding the secure GCP related information
+// across multiple services.
+message InternalServiceControlTokenInfo {
+  // Name of the service that previously obtained this token
+  // instance.
+  string service_name = 1;
+ 
+  // Timestamp at which the token was created.
+  Timestamp creation_time = 2 [(datapol.semantic_type) = ST_TIMESTAMP];
+ 
+  // The caller_ip for the request that was specified to
+  // previous Chemist check.
+  string caller_ip = 3 [(datapol.semantic_type) = ST_IP_ADDRESS];
+ 
+  // The network container for the request that was specified
+  // to previous Chemist check.
+  string network_container = 4
+      [(datapol.semantic_type) = ST_GOOGLE_RELATIONSHIP_ID];
+ 
+  // The resource containers specified to all the previous Chemist checks.
+  repeated string resource_containers = 5
+      [(datapol.semantic_type) = ST_GOOGLE_RELATIONSHIP_ID];
+ 
+  // The resource names specified to all the previous Chemist checks.
+  repeated string resource_names = 6
+      [(datapol.semantic_type) = ST_USER_CONTENT];
+}
+ 
+// Security context information related to Secure GCP API processing.
+message ServiceControlSecurityContext {
+  // Client access levels computed by Chemist via attribute
+  // calculator as part of Secure GCP processing for the
+  // incoming request.
+  // An access level string has the format:
+  //     - "accessPolicies/{policy_id}/accessLevels/{short_name}"
+  repeated string client_access_levels = 1;
+ 
+  // Client access zones computed by Chemist via AttributeCalculator
+  // as part of Secure GCP API processing for the incoming request.
+  // An access zone string has the format:
+  //     - “accessPolicies/{policy_id}/accessZones/{short_name}”
+  repeated string client_access_zones = 2;
+}
+ 
+// Information about a Secure GCP API container.
+message SecurityContainerInfo {
+  // Container's ancestry. Order is self -> Org.
+  repeated string ancestry = 1
+      [(datapol.semantic_type) = ST_GOOGLE_RELATIONSHIP_ID];
+ 
+  // Container's access zones.
+  repeated string access_zones = 2;
+ 
+  // Whether the container was mapped from a tenant project or not.
+  bool mapped_from_tenant_project = 3;
+ 
+  // Whether the container is on the restricted containers whitelist or not.
+  bool restricted = 4;
+ 
+  // Indicates whether there is a mismatch for this specific container when
+  // security policy enforcement works in dual mode. Zero means no mismatch.
+  // Nonzero values will specify the type of the mismatch.
+  int32 mismatch = 5;
+ 
+  // For tenant projects only. The service that owns the tenant project.
+  string tenant_project_owner_service = 6
+      [(datapol.semantic_type) = ST_USER_CONTENT];
+}
+ 
+// Information relevant to Location Policy processing.
+message LocationPolicyInfo {
+  // Indicates whether Location Policy violation occurred with dry run
+  // mode enabled (which means no check errors).
+  bool dry_run_policy_violation = 1;
+}
+ 
+// Information relevant to Org Policy processing.
+message OrgPolicyInfo {
+  // The resource containers that fail Org Policy check.
+  repeated string resource_container = 1
+      [(datapol.semantic_type) = ST_GOOGLE_RELATIONSHIP_ID];
+ 
+  // Org Policy check failure reason.
+  google.rpc.Code code = 2;
+ 
+  // Whether CheckOrgPolicyResponse.check_retried has been set for each resource
+  // container that fails Org Policy check. This field is 1:1 mapping to
+  // OrgPolicyInfo.resource_container.
+  repeated bool check_retried = 3;
+}
+ 
+// Information  about a Cloud Trace Span. It contains some fields from the
+// google.api.servicecontrol.v1.TraceSpan API proto.
+message TraceSpan {
+  // The resource name of the span in the following format:
+  //     projects/[PROJECT_ID|NUMBER]/traces/[TRACE_ID]/spans/[SPAN_ID]
+  string name = 1 [(datapol.semantic_type) = ST_IDENTIFYING_ID];
+ 
+  // The start time of the span. On the client side, this is the time kept by
+  // the local machine where the span execution starts. On the server side, this
+  // is the time when the server's application handler starts running.
+  Timestamp start_time = 2 [(datapol.semantic_type) = ST_TIMESTAMP];
+ 
+  // The end time of the span. On the client side, this is the time kept by
+  // the local machine where the span execution ends. On the server side, this
+  // is the time when the server application handler stops running.
+  Timestamp end_time = 3 [(datapol.semantic_type) = ST_TIMESTAMP];
+ 
+  // An optional final status for this span. This is
+  // google.api.servicecontrol.v1.TraceSpan.status.code
+  int32 code = 4;
+ 
+  // Type of span. Can be used to specify additional relationships between spans
+  // in addition to a parent/child relationship.
+  enum SpanKind {
+    // Unspecified. Do NOT use as default.
+    // Implementations MAY assume SpanKind.INTERNAL to be default.
+    SPAN_KIND_UNSPECIFIED = 0;
+ 
+    // Indicates that the span is used internally. Default value.
+    INTERNAL = 1;
+ 
+    // Indicates that the span covers server-side handling of an RPC or other
+    // remote network request.
+    SERVER = 2;
+ 
+    // Indicates that the span covers the client-side wrapper around an RPC or
+    // other remote request.
+    CLIENT = 3;
+ 
+    // Indicates that the span describes producer sending a message to a broker.
+    // Unlike client and  server, there is no direct critical path latency
+    // relationship between producer and consumer spans (e.g. publishing a
+    // message to a pubsub service).
+    PRODUCER = 4;
+ 
+    // Indicates that the span describes consumer recieving a message from a
+    // broker. Unlike client and  server, there is no direct critical path
+    // latency relationship between producer and consumer spans (e.g. receiving
+    // a message from a pubsub service subscription).
+    CONSUMER = 5;
+  }
+ 
+  // Distinguishes between spans generated in a particular context. For example,
+  // two spans with the same name may be distinguished using `CLIENT` (caller)
+  // and `SERVER` (callee) to identify an RPC call.
+  SpanKind span_kind = 5;
+}
+ 
+// Information relevant to AttributeContext used by ServiceControl v2 request.
+message AttributeContextInfo {
+  // This message defines attributes for a node that handles a network request.
+  message Peer {
+    // The IP address of the peer.
+    string ip = 1 [(datapol.semantic_type) = ST_IP_ADDRESS];
+  }
+ 
+  // This message defines attributes for the request.
+  message Request {
+    // The unique ID for a request.
+    string id = 1 [(datapol.semantic_type) = ST_SESSION_ID];
+ 
+    // The HTTP request method, such as `GET`, `POST`.
+    string method = 2 [(datapol.semantic_type) = ST_DEBUG_INFO];
+ 
+    // The HTTP request headers.
+    repeated Label headers = 3 [
+      (datapol.semantic_type) = ST_KEY_VALUE_PAIR,
+      (datapol.field_details) = { semantic_type: ST_PERSONAL_DATA }
+    ];
+ 
+    // The HTTP URL path.
+    string path = 4 [(datapol.semantic_type) = ST_USER_QUERY];
+ 
+    // The HTTP request `Host` header value.
+    string host = 5 [(datapol.semantic_type) = ST_NETWORK_ENDPOINT];
+ 
+    // The timestamp when the `destination` service receives the first byte of
+    // the request.
+    google.protobuf.Timestamp time = 6 [(datapol.semantic_type) = ST_TIMESTAMP];
+ 
+    // The request reason used by audit logging.
+    string reason = 7 [(datapol.semantic_type) = ST_DEBUG_INFO];
+  }
+ 
+  // This message defines core attributes for a resource.
+  message Resource {
+    // The full name of a resource.
+    string name = 1 [
+      (datapol.semantic_type) = ST_IDENTIFYING_ID,
+      (datapol.field_details) = { semantic_type: ST_GOOGLE_RELATIONSHIP_ID }
+    ];
+  }
+ 
+  // This message defines attributes associated with API operations, such as
+  // a network API request.
+  message Api {
+    // The API operation name.
+    string operation = 1 [(datapol.semantic_type) = ST_USER_CONTENT];
+  }
+ 
+  // The origin of a network activity.
+  Peer origin = 1;
+ 
+  // Represents a network request, such as an HTTP request.
+  Request request = 2;
+ 
+  // Represents a target resource that is involved with a network activity.
+  Resource resource = 3;
+ 
+  // Represents an API operation that is involved to a network activity.
+  Api api = 4;
+}
+ 
+// Information relevant to resource associated policy used by ServiceControl v2
+// request.
+message ResourceInfo {
+  // The name of the resource referenced in the request.
+  string name = 1 [
+    (datapol.semantic_type) = ST_IDENTIFYING_ID,
+    (datapol.field_details) = { semantic_type: ST_GOOGLE_RELATIONSHIP_ID }
+  ];
+ 
+  // The resource type in the format of "{service}/{kind}".
+  string type = 2 [(datapol.semantic_type) = ST_USER_CONTENT];
+ 
+  // The resource permission needed for this request.
+  string permission = 3 [(datapol.semantic_type) = ST_USER_CONTENT];
+}
+ 
+// Describes a subset of information about google.rpc.Status.
+message GoogleRpcStatusInfo {
+  // The status code, which should be an enum value of [google.rpc.Code][].
+  int32 code = 1;
+ 
+  // The error message.
+  string message = 2 [(datapol.semantic_type) = ST_DEBUG_INFO];
+}
+ 
+// Distribution represents a frequency distribution of double-valued sample
+// points. It contains the size of the population of sample points plus
+// additional optional information:
+//
+//   - the arithmetic mean of the samples
+//   - the minimum and maximum of the samples
+//   - the sum-squared-deviation of the samples, used to compute variance
+//   - a histogram of the values of the sample points
+message Distribution {
+  // The total number of samples in the distribution. Must be >= 0.
+  int64 count = 1;
+ 
+  // The arithmetic mean of the samples in the distribution. If `count` is
+  // zero then this field must be zero.
+  double mean = 2;
+ 
+  // The minimum of the population of values. Ignored if `count` is zero.
+  double minimum = 3;
+ 
+  // The maximum of the population of values. Ignored if `count` is zero.
+  double maximum = 4;
+ 
+  // The sum of squared deviations from the mean:
+  //   Sum[i=1..count]((x_i - mean)^2)
+  // where each x_i is a sample values. If `count` is zero then this field
+  // must be zero, otherwise validation of the request fails.
+  double sum_of_squared_deviation = 5;
+ 
+  // The number of samples in each histogram bucket. `bucket_counts` are
+  // optional. If present, they must sum to the `count` value.
+  //
+  // Buckets are numbered in the range of [0, N], with a total of N+1 buckets.
+  // There must be at least two buckets (a single-bucket histogram gives
+  // no information that isn't already provided by `count`).
+  // `bucket_counts[0]` is the number of samples in the underflow bucket.
+  // `bucket_counts[1]` to `bucket_counts[N-1]` are the numbers of samples
+  // in each of the finite buckets. And `bucket_counts[N] is the number
+  // of samples in the overflow bucket.
+  //
+  // Any suffix of trailing zeros may be omitted.
+  repeated int64 bucket_counts = 6;
+ 
+  // Defines the buckets in the histogram. `bucket_option` and `bucket_counts`
+  // must be both set, or both unset.
+  //
+  // Buckets are numbered in the range of [0, N], with a total of N+1 buckets.
+  // There must be at least two buckets (a single-bucket histogram gives
+  // no information that isn't already provided by `count`).
+  //
+  // The first bucket is the underflow bucket which has a lower bound
+  // of -inf. The last bucket is the overflow bucket which has an
+  // upper bound of +inf. All other buckets (if any) are called "finite"
+  // buckets because they have finite lower and upper bounds. As described
+  // below, there are three ways to define the finite buckets.
+  //
+  //   (1) Buckets with constant width.
+  //   (2) Buckets with exponentially growing widths.
+  //   (3) Buckets with arbitrary user-provided widths.
+  //
+  // In all cases, the buckets cover the entire real number line (-inf,
+  // +inf). Bucket upper bounds are exclusive and lower bounds are
+  // inclusive. The upper bound of the underflow bucket is equal to the
+  // lower bound of the smallest finite bucket; the lower bound of the
+  // overflow bucket is equal to the upper bound of the largest finite
+  // bucket.
+  oneof bucket_option {
+    // Buckets with constant width.
+    LinearBuckets linear_buckets = 7;
+ 
+    // Buckets with exponentially growing width.
+    ExponentialBuckets exponential_buckets = 8;
+ 
+    // Buckets with arbitrary user-provided width.
+    ExplicitBuckets explicit_buckets = 9;
+  }
+ 
+  // Describing buckets with constant width.
+  message LinearBuckets {
+    // The number of finite buckets. With the underflow and overflow buckets,
+    // the total number of buckets is `num_finite_buckets` + 2.
+    // See comments on `bucket_options` for details.
+    int32 num_finite_buckets = 1;
+ 
+    // The i'th linear bucket covers the interval
+    //   [offset + (i-1) * width, offset + i * width)
+    // where i ranges from 1 to num_finite_buckets, inclusive.
+    // Must be strictly positive.
+    double width = 2;
+ 
+    // The i'th linear bucket covers the interval
+    //   [offset + (i-1) * width, offset + i * width)
+    // where i ranges from 1 to num_finite_buckets, inclusive.
+    double offset = 3;
+  }
+  // Describing buckets with exponentially growing width.
+  //
+  // The 0-th bucket is the underflow bucket which has a lower bound of -inf.
+  // The N-th bucket is the overflow bucket which has an upper bound of +inf.
+  // All other buckets (if any) are called "finite" buckets because they have
+  // finite lower and upper bounds. The boundaries of finite buckets are
+  // defined as below.
+  //
+  // The i'th exponential bucket covers the interval
+  //   [scale * growth_factor^(i-1), scale * growth_factor^i)
+  // where i ranges from 1 to num_finite_buckets inclusive.
+  message ExponentialBuckets {
+    // The number of finite buckets. With the underflow and overflow buckets,
+    // the total number of buckets is `num_finite_buckets` + 2.
+    int32 num_finite_buckets = 1;
+ 
+    // Must be larger than 1.0.
+    double growth_factor = 2;
+ 
+    // Must be > 0.
+    double scale = 3;
+  }
+ 
+  // Describing buckets with arbitrary user-provided width.
+  message ExplicitBuckets {
+    // 'bound' is a list of strictly increasing boundaries between
+    // buckets. Note that a list of length N-1 defines N buckets because
+    // of fenceposting. See comments on `bucket_options` for details.
+    //
+    // The i'th finite bucket covers the interval
+    //   [bound[i-1], bound[i])
+    // where i ranges from 1 to bound_size() - 1. Note that there are no
+    // finite buckets at all if 'bound' only contains a single element; in
+    // that special case the single bound defines the boundary between the
+    // underflow and overflow buckets.
+    //
+    // bucket number                   lower bound    upper bound
+    //  i == 0 (underflow)              -inf           bound[i]
+    //  0 < i < bound_size()            bound[i-1]     bound[i]
+    //  i == bound_size() (overflow)    bound[i-1]     +inf
+    repeated double bounds = 1;
+  }
+}
+ 
+// Information about outcome of P4SA authorization check.
+message P4SAInfo {
+  // The status of p4sa authorization.
+  enum P4SAStatus {
+    // No p4sa authorization checks were performed.
+    P4SA_STATUS_UNKNOWN = 0;
+    // Access was allowed.
+    P4SA_ACCESS_AUTHORIZED = 1;
+    // Access denied because was unable to extract p4sa info from the security
+    // context.
+    UNABLE_TO_OBTAIN_P4SA_INFO = 2;
+    // Access denied because the p4sa account was not production, but the policy
+    // allowed only production accounts.
+    NON_PRODUCTION_P4SA_ACCOUNT = 3;
+    // Access denied because the owner project of the extracted p4sa info did
+    // not match the configured project.
+    P4SA_OWNER_PROJECT_MISMATCH = 4;
+    // Access denied because the "user" project extracted from the p4sa info did
+    // not match actual consumer.
+    P4SA_CONSUMER_PROJECT_MISMATCH = 5;
+    // Access denied because the consumer info extracted from P4SA was in
+    // invalid format.
+    INVALID_P4SA_CONSUMER_FORMAT = 6;
+  }
+  P4SAStatus p4sa_authz_status = 1;
+  // Owner project number extracted from user credentials, if available. Is not
+  // set for successful authorization outcome.
+  int64 owner_project_number = 2
+      [(datapol.semantic_type) = ST_CLOUD_PROJECT_NUMBER];
+  // Consumer project as it appears in the extracted p4sa data.
+  string consumer_project = 3
+      [(datapol.semantic_type) = ST_GOOGLE_RELATIONSHIP_ID];
+}
