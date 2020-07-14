@@ -16,10 +16,6 @@ syntax = "proto3";
 
 package apiserving.servicecontrol;
 
-import "logs/proto/logs_annotations/logs_annotations.proto";
-
-option (logs_proto.file_not_used_for_logging_except_enums) = true;
-
 enum BackendType {
   UNKNOWN_TYPE = 0;
   LOGGING_PRODUCER = 1;
