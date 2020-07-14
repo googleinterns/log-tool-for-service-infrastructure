@@ -18,8 +18,6 @@ package google.api;
 
 import "google/api/label.proto";
 import "google/api/launch_stage.proto";
-import "google/api/monitoring_migration.proto";
-import "google/api/visibility.proto";
 import "google/protobuf/duration.proto";
 import "logs/proto/logs_annotations/logs_annotations.proto";
 
@@ -226,15 +224,10 @@ message MetricDescriptor {
   string display_name = 7;
 
   // Control the visibility of this metric.
-  string visibility_restriction = 9
-      [(google.api.field_visibility).restriction = "GOOGLE_INTERNAL,PANTHEON"];
+  string visibility_restriction = 9;
 
   // Optional. Metadata which can be used to guide usage of the metric.
   MetricDescriptorMetadata metadata = 10;
-
-  // Optional. This would only be used for migration purpose.
-  MonitoringMigration monitoring_migration = 11
-      [(google.api.field_visibility).restriction = "GOOGLE_INTERNAL"];
 
   // Optional. The launch stage of the metric definition.
   LaunchStage launch_stage = 12;
@@ -337,34 +330,6 @@ message Metric {
 // metrics. AreaUnderCurveParams groups the relevant ones: which
 // snapshot_metric and change_metric are used to produce which
 // generated_metric.
-//
-// (-- GOOGLE_INTERNAL:
-// An example:
-//  metrics:
-//  - name: compute.googleapis.com/consumer/resource_used
-//    metric_kind: GAUGE
-//    value_type: INT64
-//    unit: By  # byte
-//    labels:
-//    - key: resource_id
-//    - key: service_tier
-//  - name: compute.googleapis.com/consumer/billable_resource_used
-//    metric_kind: DELTA
-//    value_type: INT64
-//    unit: By.s  # Byte x second
-//    labels:
-//    - key: resource_id
-//    - key: service_tier
-//
-//    ...
-//
-//  area_under_curve_params:
-//  - snapshot_metric: compute.googleapis.com/consumer/resource_used
-//    generated_metric: compute.googleapis.com/consumer/billable_resource_used
-//    aggregation_labels:
-//    - resource_id
-//
-// --)
 message AreaUnderCurveParams {
   // Total usage of a resource at a particular timestamp. This should be
   // a GAUGE metric.
@@ -377,10 +342,6 @@ message AreaUnderCurveParams {
   // Labels on this metric need to match labels on the snapshot_metric and must
   // be defined under the same monitored_resource. This should be a CUMULATIVE
   // metric.
-  // (-- GOOGLE_INTERNAL:
-  // DELTAs will be supported with
-  // b/130760771.
-  // --)
   string generated_metric = 3;
   // Labels that uniquely identify and group snapshot_metrics for AUC
   // aggregation into a generated_metric. Labels in this list must be a subset
@@ -391,12 +352,5 @@ message AreaUnderCurveParams {
   // current stream ends and a new stream is created with the new label values.
   // Modifying this list changes how AUC is calculated by splitting usage based
   // on the new identifiers.
-  // (-- GOOGLE_INTERNAL:
-  // In the example above, if a resource changes from tier A to tier B the
-  // resource identifier does not change but a customer will see two usage
-  // sessions. One session with an end time at the transition time and a tier of
-  // A and one session after the transition time with a tier of B but both will
-  // be attributed to the same resource based on the resource_id label.
-  // --)
   repeated string aggregation_labels = 4;
 }
