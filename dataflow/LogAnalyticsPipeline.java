@@ -49,51 +49,40 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-// ProtoCoder (Apache Beam)
-import org.apache.beam.sdk.extensions.protobuf.ProtoCoder;
-// https://beam.apache.org/releases/javadoc/2.11.0/index.html?org/apache/beam/sdk/extensions/protobuf/ProtoCoder.html
-// import MyProtoFile;
-// import MyProtoFile.MyMessage;
 import com.google.api.servicecontrol.log.ServiceExtensionProtos;
 import com.google.api.servicecontrol.log.ServiceExtensionProtos.ServiceControlLogEntry;
-// Additional packages:
-// import com.google.protobuf.timestamp;
 import com.google.api.servicecontrol.log.ServiceExtensionProtos.Timestamp;
 import com.google.api.servicecontrol.log.ServiceExtensionProtos.ServiceControlExtension;
 import com.google.api.servicecontrol.log.ServiceExtensionProtos.OperationInfo;
 import com.google.api.servicecontrol.log.ServiceExtensionProtos.StatusInfo;
-//
 import com.google.protobuf.TextFormat;
 import com.google.protobuf.util.JsonFormat;
 import com.google.protobuf.ExtensionRegistry;
-// https://cloud.google.com/dataflow/docs/guides/templates/creating-templates#java:-sdk-2.x
+import org.apache.beam.sdk.extensions.protobuf.ProtoCoder;
 import org.apache.beam.sdk.options.ValueProvider;
-import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
-//
-import java.util.Date;
-import java.text.SimpleDateFormat;
-import java.time.ZoneId;
-import org.joda.time.DateTimeZone;
-import org.joda.time.DateTime;
-//
 import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.transforms.View;
-import java.util.Map;
+import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
 import org.apache.beam.sdk.transforms.Combine;
 import org.apache.beam.sdk.transforms.Combine.CombineFn;
 import org.apache.beam.sdk.transforms.Keys;
 import org.apache.beam.sdk.transforms.Values;
 import org.apache.beam.sdk.transforms.Filter;
-// 
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.transforms.join.CoGroupByKey;
 import org.apache.beam.sdk.transforms.join.CoGbkResult;
 import org.apache.beam.sdk.transforms.join.KeyedPCollectionTuple;
-//
+import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO.Write.WriteDisposition;
+import org.joda.time.DateTimeZone;
+import org.joda.time.DateTime;
+
+import java.util.Date;
+import java.text.SimpleDateFormat;
+import java.time.ZoneId;
 import java.util.Map;
 import java.util.HashMap;
-//
-import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO.Write.WriteDisposition;
+
+
 
 // https://github.com/GoogleCloudPlatform/processing-logs-using-dataflow
 public class LogAnalyticsPipeline {
@@ -156,22 +145,6 @@ public class LogAnalyticsPipeline {
         public void processElement(ProcessContext c) {
             LogMessage logMessage = parseEntry(c.element());
             if(logMessage != null) {
-                // if(this.outputWithTimestamp) {
-                //     c.outputWithTimestamp(logMessage, logMessage.getTimestamp());
-                // }
-                // else {
-                    // DEBUG:
-                    // System.out.println("Sampled LogMessage's timestamp: \n" + logMessage.getTimestamp());
-                    // System.out.println("Sampled LogMessage's serviceControlLogEntry: \n" + logMessage.getServiceControlLogEntry());
-                    // ServiceExtensionProtos.Timestamp timestamp = logMessage.getTimestamp();
-                    // long seconds = timestamp.getSeconds();
-                    // String dateStr = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date(seconds * 1000L));
-                    // DateTimeFormatter dtf = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss");
-                    // Instant instant = Instant.parse(dateStr, dtf);
-                    // DEBUG:
-                    // System.out.println(instant.toString());
-                    // c.outputWithTimestamp(logMessage, instant); //
-                // }
                 c.output(logMessage);
             }
         }
@@ -179,8 +152,6 @@ public class LogAnalyticsPipeline {
         private LogMessage parseEntry(ServiceControlLogEntry entry) {
             try {
                 //extract a field from a protobuf message
-                // Instant timestamp = (Instant) entry.getTimestamp();
-                // return new LogMessage(timestamp, entry);
                 long timeUsec = entry.getTimeUsec();
                 return new LogMessage(timeUsec, entry);
             }
@@ -191,33 +162,6 @@ public class LogAnalyticsPipeline {
                 LOG.error("NullPointerException parsing entry: " + e.getMessage());
             }
             return null;
-        }
-    }
-
-    public class SumFn extends CombineFn<Double, SumFn.Accum, Double> {
-        public class Accum { // public static class Accum { //modifier static not allowed here
-            double sum = 0;
-            int count = 0;
-        }
-        public Accum createAccumulator() {
-            return new Accum();
-        }
-        public Accum addInput(Accum accum, Double input) {
-            accum.sum += input;
-            accum.count++;
-            return accum;
-        }
-        public Accum mergeAccumulators(Iterable<Accum> accums) {
-            Accum merged = createAccumulator();
-            for (Accum accum : accums) {
-                merged.sum += accum.sum;
-                merged.count += accum.count;
-            }
-            return merged;
-        }
-        public Double extractOutput(Accum accum) {
-            // return ((double) accum.sum) / accum.count;
-            return accum.sum;
         }
     }
 
@@ -236,49 +180,25 @@ public class LogAnalyticsPipeline {
         }
     }
 
-    private static class serviceQueryCollectionFn extends DoFn<LogMessage, KV<String, Double>> {
-        @ProcessElement
-        public void processElement(ProcessContext c) throws Exception {
-            LogMessage l = c.element();
-            ServiceControlExtension sce = l.getServiceControlLogEntry().getProtoContent();
-            String serviceName = sce.getServiceName();
-            c.output(KV.of(serviceName, 1.0));
-        }
-    }
+    private static class RemoveKeyPrefixFn extends DoFn<KV<String, Double>, KV<String, Double>> {
+        private String prefix;
 
-    private static class serviceErrorsCountCollectionFn extends DoFn<LogMessage, KV<String, Double>> {
-        private String errorType;
-
-        public serviceErrorsCountCollectionFn(String errorType) {
-            this.errorType = errorType;
+        public RemoveKeyPrefixFn(String prefix) {
+            this.prefix = prefix;
         }
 
         @ProcessElement
         public void processElement(ProcessContext c) throws Exception {
-            LogMessage l = c.element();
-            ServiceControlExtension sce = l.getServiceControlLogEntry().getProtoContent();
-            String serviceName = sce.getServiceName();
-            Double errorsCount = 0.0;
-            if(errorType.equals("check")) {
-                errorsCount = sce.getCheckErrorsCount() + 0.0;
-            } else if(errorType.equals("quota")) {
-                errorsCount = sce.getQuotaErrorsCount() + 0.0;
-            } else {
-                // throw exception
-            }
-            c.output(KV.of(serviceName, errorsCount));
+            KV<String, Double> kv = c.element();
+            c.output(KV.of(kv.getKey().substring(prefix.length()), kv.getValue()));
         }
     }
 
     private static class TimestampAndEntityKeyedFieldValueFn extends DoFn<LogMessage, KV<String, Double>> {
         private long interval;
-        private String entity;
-        private String field;
 
-        public TimestampAndEntityKeyedFieldValueFn(long interval, String entity, String field) {
+        public TimestampAndEntityKeyedFieldValueFn(long interval) {
             this.interval = interval;
-            this.entity   = entity;
-            this.field    = field;
         }
 
         @ProcessElement
@@ -289,60 +209,20 @@ public class LogAnalyticsPipeline {
             long ts = l.getTimeUsec(); 
             ServiceControlExtension sce = l.getServiceControlLogEntry().getProtoContent();
 
-
             long seconds = ts / 1000000; // tricky
             long remainder = seconds % interval; // tricky
             String timestamp = (seconds - remainder) + "";
 
-            if (entity.equals("service")) {
-                String serviceName = sce.getServiceName();
-                Double fieldValue = -1.0;
-                if (field.equals("query")) {
-                    fieldValue = 1.0;
-                } else if (field.equals("check")) {
-                    fieldValue = sce.getCheckErrorsCount() + 0.0;
-                } else if (field.equals("quota")) {
-                    fieldValue = sce.getQuotaErrorsCount() + 0.0;
-                } else if (field.equals("status")) {
-                    int code = sce.getStatus().getCode();
-                    fieldValue = (code == 0) ? 0.0 : 1.0; // 1.0 for positive 
-                } else {
-                    //TODO: throw exception
-                }
-                // if (field.equals("status") && fieldValue == 0.0) { //
-                //     // do not output
-                // } else {
-                    c.output(KV.of(timestamp + "-" + serviceName, fieldValue));
-                // }
-            } else if (entity.equals("consumer")) {
-                if (!field.equals("query")) {
-                    //TODO: throw exception
-                }
-                for (OperationInfo op : sce.getOperationsList()) {
-                    String consumerProjectId = op.getConsumerProjectId();
-                    c.output(KV.of(timestamp + "-" + consumerProjectId, 1.0));
-                }
-            } else { // accpet other types of entities?
-                //TODO: throw exception
+            String serviceName = sce.getServiceName();
+                c.output(KV.of("service_-query_-" + timestamp + "-" + sce.getServiceName(), sce.getOperationsCount() + 0.0)); // 1.0?
+                c.output(KV.of("service_-check_-" + timestamp + "-" + sce.getServiceName(), sce.getCheckErrorsCount() + 0.0));
+                c.output(KV.of("service_-quota_-" + timestamp + "-" + sce.getServiceName(), sce.getQuotaErrorsCount() + 0.0));
+                c.output(KV.of("service_-status-" + timestamp + "-" + sce.getServiceName(), (sce.getStatus().getCode() == 0) ? 0.0 : 1.0));
+
+            for (OperationInfo op : sce.getOperationsList()) {
+                String consumerProjectId = op.getConsumerProjectId();
+                c.output(KV.of("consumer-query_-" + timestamp + "-" + op.getConsumerProjectId(), 1.0));
             }
-
-        }
-    }
-
-    private static class EntityKeyedTimestampFieldValueFn extends DoFn<KV<String, Double>, KV<String, KV<String, Double>>> {
-        @ProcessElement
-        public void processElement(ProcessContext c) throws Exception {
-            KV<String, Double> kv = c.element();
-            String timestampEntity = kv.getKey();
-            Double fieldValue = kv.getValue();
-
-            String timestampSeconds = timestampEntity.substring(0, 10);
-            String entityName = timestampEntity.substring(10+1);
-
-            String key0 = entityName;
-            String key1 = timestampSeconds;
-            Double value1 = fieldValue;
-            c.output(KV.of(key0, KV.of(key1, value1)));
         }
     }
 
@@ -353,12 +233,13 @@ public class LogAnalyticsPipeline {
             String timestampEntity = kv.getKey();
             Double fieldValue = kv.getValue();
 
-            // String timestampSeconds = timestampEntity.substring(0, 10);
-            String entityName = timestampEntity.substring(10+1);
+            String keyWithoutTimestamp = timestampEntity.substring(0, 16) + timestampEntity.substring(27);
 
-            String key0 = entityName;
+            // String key0 = entityName;
+            String key0 = keyWithoutTimestamp;
             // String key1 = timestampSeconds;
             Double value1 = fieldValue;
+            // c.output(KV.of(key0, KV.of(key1, value1)));
             c.output(KV.of(key0, value1));
         }
     }
@@ -401,7 +282,7 @@ public class LogAnalyticsPipeline {
             Double sum = coGbkResult.getOnly(sumTag);
 
             String key = entityName;
-            Double value = (max - min) / sum;
+            Double value = (sum == 0.0) ? 0.0 : (max - min) / sum; //TODO: reasonable corner case treament?
             c.output(KV.of(key, value));
         }
     }
@@ -430,64 +311,17 @@ public class LogAnalyticsPipeline {
         }
     }
 
-    private static class ServicesTableRowFn extends DoFn<LogMessage, TableRow> {
-        @ProcessElement
-        public void processElement(ProcessContext c) {
-            LogMessage l = c.element();
-
-            ServiceControlExtension sce = l.getServiceControlLogEntry().getProtoContent();
-            long ts = l.getTimeUsec();
-
-            TableRow row = new TableRow()
-              .set("serviceName", sce.getServiceName())
-              .set("timeUsec", ts + "")
-              .set("statusMessage", sce.getStatus().getMessage());
-
-            c.output(row);
-        }
-    }
-
-    private static class OperationsTableRowFn extends DoFn<LogMessage, TableRow> {
-        @ProcessElement
-        public void processElement(ProcessContext c) {
-            LogMessage l = c.element();
-
-            ServiceControlExtension sce = l.getServiceControlLogEntry().getProtoContent();
-            String serviceName = sce.getServiceName();
-            List<OperationInfo> ops = sce.getOperationsList();
-            for (OperationInfo op : ops) {
-                TableRow row = new TableRow()
-                    .set("operationId", op.getOperationId())
-                    .set("operationName", op.getOperationName())
-                    .set("associatedServiceName", serviceName)
-                    .set("consumerProjectId", op.getConsumerProjectId())
-                    .set("startSeconds", op.getStartTime().getSeconds() + "")
-                    .set("startNanos", op.getStartTime().getNanos() + "")
-                    .set("endSeconds", op.getEndTime().getSeconds() + "")
-                    .set("endNanos", op.getEndTime().getNanos() + "");
-                c.output(row);
-            }
-
-        }
-    }
-
     private static class TimestampEntityFieldTableRowFn extends DoFn<KV<String, Double>, TableRow> {
-        private String entityType;
-        private String fieldName;
-
-        public TimestampEntityFieldTableRowFn(String entityType, String fieldName) {
-            this.entityType = entityType;
-            this.fieldName  = fieldName;
-        }
-
         @ProcessElement
         public void processElement(ProcessContext c) {
             KV<String, Double> kv = c.element();
             String timestampEntity = kv.getKey();
             Double fieldValue = kv.getValue();
 
-            String timestampSeconds = timestampEntity.substring(0, 10);
-            String entityName = timestampEntity.substring(10+1);
+            String entityType = timestampEntity.substring(0, 8);
+            String fieldName = timestampEntity.substring(9, 15);
+            String timestampSeconds = timestampEntity.substring(16, 26);
+            String entityName = timestampEntity.substring(27);
 
             TableRow row = new TableRow()
                 .set("seconds",    timestampSeconds)
@@ -554,6 +388,43 @@ public class LogAnalyticsPipeline {
         }
     }
 
+    private static class ConsumerFieldStatTableRowFn extends DoFn<KV<String, CoGbkResult>, TableRow> {
+        private TupleTag<Double> querySumTag;
+        // private TupleTag<Double> checkSumTag;
+        // private TupleTag<Double> quotaSumTag;
+        // private TupleTag<Double> statusSumTag;
+        private TupleTag<Double> queryPerIntervalTag;
+        private TupleTag<Double> queryDevTag;
+        // private TupleTag<Double> checkRatioTag;
+        // private TupleTag<Double> quotaRatioTag;
+        // private TupleTag<Double> statusRatioTag;
+
+        public ConsumerFieldStatTableRowFn(TupleTag<Double> querySumTag, 
+                                            TupleTag<Double> queryPerIntervalTag, TupleTag<Double> queryDevTag) {
+            this.querySumTag          = querySumTag;
+            this.queryPerIntervalTag  = queryPerIntervalTag;
+            this.queryDevTag          = queryDevTag;
+        }
+
+        @ProcessElement
+        public void processElement(ProcessContext c) throws Exception {
+            KV<String, CoGbkResult> kv = c.element();
+            String consumerName = kv.getKey();
+            CoGbkResult coGbkResult = kv.getValue();
+
+            Double querySum         = coGbkResult.getOnly(querySumTag);
+            Double queryPerInterval = coGbkResult.getOnly(queryPerIntervalTag);
+            Double queryDev         = coGbkResult.getOnly(queryDevTag);
+
+            TableRow row = new TableRow()
+                .set("consumer",         consumerName)
+                .set("querySum",         querySum          + "")
+                .set("queryPerInterval", queryPerInterval  + "")
+                .set("queryDev",         queryDev          + "");
+            c.output(row);
+        }
+    }
+
     private static class TableRowOutputTransform extends PTransform<PCollection<KV<String,Double>>,PCollection<TableRow>> {
         private String tableSchema;
         private String tableName;
@@ -600,29 +471,41 @@ public class LogAnalyticsPipeline {
         }
     }
 
-    private static PCollection<KV<String, Double>> getTimestampEntityFieldsCombinedWithinEachInterval(PCollection<LogMessage> allLogMessages, long interval, String entity, String field) {
+    private static PCollection<KV<String, Double>> getTimestampEntityFieldsCombinedWithinEachInterval(PCollection<LogMessage> allLogMessages, long interval) {
         PCollection<KV<String, Double>> res = allLogMessages
-            .apply("", ParDo.of(new TimestampAndEntityKeyedFieldValueFn(interval, entity, field)))
+            .apply("", ParDo.of(new TimestampAndEntityKeyedFieldValueFn(interval)))
             .apply(Combine.<String, Double, Double>perKey(Sum.ofDoubles())) // .apply(Sum.<String>doublesPerKey())
-            .apply("Print", ParDo.of(new PrintKVStringDoubleFn("timestamp-" + entity + "-" + field)));
+            .apply("Print", ParDo.of(new PrintKVStringDoubleFn("")));
         return res;
     }
 
-    private static Map<String, PCollection<KV<String, Double>>> getMinMaxSum(PCollection<KV<String, Double>> timestampEntityFields, String entity, String field) {
+    private static PCollection<KV<String, Double>> doFilterAndRemoveKeyPrefix(PCollection<KV<String, Double>> pc, String prefix) {
+        PCollection<KV<String, Double>> res = pc
+            .apply(Filter.by(new SerializableFunction<KV<String, Double>, Boolean>() {
+                @Override
+                public Boolean apply(KV<String, Double> input) {
+                    return input.getKey().startsWith(prefix);
+                }
+            }))
+            .apply("", ParDo.of(new RemoveKeyPrefixFn(prefix)));
+        return res;
+    }
+
+    private static Map<String, PCollection<KV<String, Double>>> getMinMaxSum(PCollection<KV<String, Double>> timestampEntityFields) {
         PCollection<KV<String, Double>> entityField = timestampEntityFields
             .apply("", ParDo.of(new EntityKeyedFieldValueFn()));
 
         PCollection<KV<String, Double>> min = entityField
             .apply(Min.<String>doublesPerKey()) 
-            .apply("Print", ParDo.of(new PrintKVStringDoubleFn(entity + "-" + field + " (Min)")));
+            .apply("Print", ParDo.of(new PrintKVStringDoubleFn(" (Min)")));
 
         PCollection<KV<String, Double>> max = entityField
             .apply(Max.<String>doublesPerKey()) 
-            .apply("Print", ParDo.of(new PrintKVStringDoubleFn(entity + "-" + field + " (Max)")));
+            .apply("Print", ParDo.of(new PrintKVStringDoubleFn(" (Max)")));
 
         PCollection<KV<String, Double>> sum = entityField
             .apply(Combine.<String, Double, Double>perKey(Sum.ofDoubles())) 
-            .apply("Print", ParDo.of(new PrintKVStringDoubleFn(entity + "-" + field + " (Sum)")));
+            .apply("Print", ParDo.of(new PrintKVStringDoubleFn(" (Sum)")));
 
         Map<String, PCollection<KV<String, Double>>> res = new HashMap<String, PCollection<KV<String, Double>>>();
         res.put("min", min);
@@ -631,7 +514,15 @@ public class LogAnalyticsPipeline {
         return res;
     }
 
-    private static PCollection<KV<String, Double>> getDeviation(Map<String, PCollection<KV<String, Double>>> entityFieldMinMaxSum, String entity, String field) {
+    private static PCollection<KV<String, Double>> getMeanPerInterval(PCollection<KV<String, Double>> entityFieldSum, long timeIntervalCount) {
+        PCollection<KV<String, Double>> res = entityFieldSum
+            .apply("", ParDo.of(new CalculateMeanPerIntervalFn(timeIntervalCount)))
+            .apply("Print", ParDo.of(new PrintKVStringDoubleFn(" (PerInterval)")));;
+
+        return res;
+    }
+
+    private static PCollection<KV<String, Double>> getDeviation(Map<String, PCollection<KV<String, Double>>> entityFieldMinMaxSum) {
         final TupleTag<Double> minTag = new TupleTag<Double>();
         final TupleTag<Double> maxTag = new TupleTag<Double>();
         final TupleTag<Double> sumTag = new TupleTag<Double>();
@@ -644,29 +535,33 @@ public class LogAnalyticsPipeline {
 
         PCollection<KV<String, Double>> res = joined
             .apply("", ParDo.of(new CalculateDeviationFn(minTag, maxTag, sumTag)))
-            .apply("Print", ParDo.of(new PrintKVStringDoubleFn(entity + "-" + field + " (Dev)")));
+            .apply("Print", ParDo.of(new PrintKVStringDoubleFn(" (Dev)")));
 
         return res;
     }
 
-    private static PCollection<KV<String, Double>> getRatio(PCollection<KV<String, Double>> entityQuerySum, PCollection<KV<String, Double>> entityFieldSum, String entity, String field) {
+    private static PCollection<KV<String, Double>> getRatio(PCollection<KV<String, Double>> entityFieldSum, String entityType, String fieldName) {
+        // filter and rename key first
+        PCollection<KV<String, Double>> specificEntityQuerySum = doFilterAndRemoveKeyPrefix(entityFieldSum, entityType + "-" + "query_"  + "-");
+        PCollection<KV<String, Double>> specificEntityFieldSum = doFilterAndRemoveKeyPrefix(entityFieldSum, entityType + "-" + fieldName + "-");
+        
         final TupleTag<Double> querySumTag = new TupleTag<Double>();
         final TupleTag<Double> fieldSumTag = new TupleTag<Double>();
 
         PCollection<KV<String, CoGbkResult>> joined = KeyedPCollectionTuple
-            .of(querySumTag,  entityQuerySum)
-            .and(fieldSumTag, entityFieldSum)
+            .of(querySumTag,  specificEntityQuerySum)
+            .and(fieldSumTag, specificEntityFieldSum)
             .apply(CoGroupByKey.<String>create());
 
         PCollection<KV<String, Double>> res = joined
             .apply("", ParDo.of(new CalculateRatioFn(querySumTag, fieldSumTag)))
-            .apply("Print", ParDo.of(new PrintKVStringDoubleFn(entity + "-" + field + " (Ratio)")));
+            .apply("Print", ParDo.of(new PrintKVStringDoubleFn(" (Ratio)")));
 
         return res;
     }
 
-    private static boolean writeTimestampEntityFieldToBigQuery(PCollection<KV<String, Double>> timestampEntityFields, String entityType, String fieldName, String bqTempLocation, String tableName, String tableSchema, BigQueryIO.Write.WriteDisposition writeDisposition) {
-        timestampEntityFields.apply("", ParDo.of(new TimestampEntityFieldTableRowFn(entityType, fieldName)))
+    private static boolean writeTimestampEntityFieldToBigQuery(PCollection<KV<String, Double>> timestampEntityFields, String bqTempLocation, String tableName, String tableSchema, BigQueryIO.Write.WriteDisposition writeDisposition) {
+        timestampEntityFields.apply("", ParDo.of(new TimestampEntityFieldTableRowFn()))
             .apply("ToBigQuery", BigQueryIO.writeTableRows()
                 .to(tableName)
                 .withSchema(TableRowOutputTransform.createTableSchema(tableSchema))
@@ -678,29 +573,58 @@ public class LogAnalyticsPipeline {
     }
 
     private static boolean writeServiceFieldStatsToBigQuery(Map<String, PCollection<KV<String, Double>>> serviceFieldStats, String bqTempLocation, String tableName, String tableSchema) {
-        final TupleTag<Double> querySumTag  = new TupleTag<Double>();
-        final TupleTag<Double> checkSumTag  = new TupleTag<Double>();
-        final TupleTag<Double> quotaSumTag  = new TupleTag<Double>();
-        final TupleTag<Double> statusSumTag = new TupleTag<Double>();
+        final TupleTag<Double> querySumTag          = new TupleTag<Double>();
+        final TupleTag<Double> checkSumTag          = new TupleTag<Double>();
+        final TupleTag<Double> quotaSumTag          = new TupleTag<Double>();
+        final TupleTag<Double> statusSumTag         = new TupleTag<Double>();
         final TupleTag<Double> queryPerIntervalTag  = new TupleTag<Double>();
-        final TupleTag<Double> queryDevTag  = new TupleTag<Double>();
-        final TupleTag<Double> checkRatioTag  = new TupleTag<Double>();
-        final TupleTag<Double> quotaRatioTag  = new TupleTag<Double>();
-        final TupleTag<Double> statusRatioTag = new TupleTag<Double>();
+        final TupleTag<Double> queryDevTag          = new TupleTag<Double>();
+        final TupleTag<Double> checkRatioTag        = new TupleTag<Double>();
+        final TupleTag<Double> quotaRatioTag        = new TupleTag<Double>();
+        final TupleTag<Double> statusRatioTag       = new TupleTag<Double>();
 
         PCollection<KV<String, CoGbkResult>> joined = KeyedPCollectionTuple
-            .of(querySumTag,   serviceFieldStats.get("querySum"))
-            .and(checkSumTag,  serviceFieldStats.get("checkSum"))
-            .and(quotaSumTag,  serviceFieldStats.get("quotaSum"))
-            .and(statusSumTag, serviceFieldStats.get("statusSum"))
-            .and(queryPerIntervalTag,  serviceFieldStats.get("queryPerInterval"))
-            .and(queryDevTag,  serviceFieldStats.get("queryDev"))
-            .and(checkRatioTag,  serviceFieldStats.get("checkRatio"))
-            .and(quotaRatioTag,  serviceFieldStats.get("quotaRatio"))
-            .and(statusRatioTag, serviceFieldStats.get("statusRatio"))
+            .of(querySumTag,          serviceFieldStats.get("querySum"))
+            .and(checkSumTag,         serviceFieldStats.get("checkSum"))
+            .and(quotaSumTag,         serviceFieldStats.get("quotaSum"))
+            .and(statusSumTag,        serviceFieldStats.get("statusSum"))
+            .and(queryPerIntervalTag, serviceFieldStats.get("queryPerInterval"))
+            .and(queryDevTag,         serviceFieldStats.get("queryDev"))
+            .and(checkRatioTag,       serviceFieldStats.get("checkRatio"))
+            .and(quotaRatioTag,       serviceFieldStats.get("quotaRatio"))
+            .and(statusRatioTag,      serviceFieldStats.get("statusRatio"))
             .apply(CoGroupByKey.<String>create());
 
         joined.apply("", ParDo.of(new ServiceFieldStatTableRowFn(querySumTag, checkSumTag, quotaSumTag, statusSumTag, queryPerIntervalTag, queryDevTag, checkRatioTag, quotaRatioTag, statusRatioTag)))
+            .apply("ToBigQuery", BigQueryIO.writeTableRows()
+                .to(tableName)
+                .withSchema(TableRowOutputTransform.createTableSchema(tableSchema))
+                .withCustomGcsTempLocation(StaticValueProvider.of(bqTempLocation))
+                .withWriteDisposition(BigQueryIO.Write.WriteDisposition.WRITE_TRUNCATE) // WRITE_APPEND
+                .withCreateDisposition(BigQueryIO.Write.CreateDisposition.CREATE_IF_NEEDED));
+
+        return true;
+
+    }
+
+    private static boolean writeConsumerFieldStatsToBigQuery(Map<String, PCollection<KV<String, Double>>> stats, String bqTempLocation, String tableName, String tableSchema) {
+        final TupleTag<Double> querySumTag          = new TupleTag<Double>();
+        // final TupleTag<Double> checkSumTag       = new TupleTag<Double>();
+        // final TupleTag<Double> quotaSumTag       = new TupleTag<Double>();
+        // final TupleTag<Double> statusSumTag      = new TupleTag<Double>();
+        final TupleTag<Double> queryPerIntervalTag  = new TupleTag<Double>();
+        final TupleTag<Double> queryDevTag          = new TupleTag<Double>();
+        // final TupleTag<Double> checkRatioTag     = new TupleTag<Double>();
+        // final TupleTag<Double> quotaRatioTag     = new TupleTag<Double>();
+        // final TupleTag<Double> statusRatioTag    = new TupleTag<Double>();
+
+        PCollection<KV<String, CoGbkResult>> joined = KeyedPCollectionTuple
+            .of(querySumTag,          stats.get("querySum"))
+            .and(queryPerIntervalTag, stats.get("queryPerInterval"))
+            .and(queryDevTag,         stats.get("queryDev"))
+            .apply(CoGroupByKey.<String>create());
+
+        joined.apply("", ParDo.of(new ConsumerFieldStatTableRowFn(querySumTag, queryPerIntervalTag, queryDevTag)))
             .apply("ToBigQuery", BigQueryIO.writeTableRows()
                 .to(tableName)
                 .withSchema(TableRowOutputTransform.createTableSchema(tableSchema))
@@ -731,29 +655,8 @@ public class LogAnalyticsPipeline {
         Pipeline p = Pipeline.create(options);
 
         /* (1) Read data (raw string?) as PCollection<MyMessage> from GCS */
-
-        // ref: https://beam.apache.org/releases/javadoc/2.0.0/org/apache/beam/sdk/extensions/protobuf/ProtoCoder.html
-        ProtoCoder<ServiceControlLogEntry> coder = ProtoCoder.of(ServiceControlLogEntry.class).withExtensionsFrom(ServiceExtensionProtos.class);
-        // if (options.isStreaming()) {
-        //     outputWithTimestamp = false;
-        //     allLogs = p.apply("logsPubSubRead", PubsubIO.readProtos(ServiceControlLogEntry.class).fromSubscription(options.getLogSource()))
-        //                 .setCoder(coder);
-        // } else {
-        //     outputWithTimestamp = true;
-        //     allLogs = p.apply("logsTextRead", TextIO.read().from(options.getLogSource()).withCoder(ProtoCoder.of(ServiceControlLogEntry.class)))
-        //                 .setCoder(coder);
-        // }
-        // outputWithTimestamp = true;
-
-        // filepattern = "input/sample_5l.txt"; // "gs://alchemy-logdata/sample_5line.txt"; 
         System.out.println("Input filepattern: " + filepattern + "\n");
-
-        // Debug: java.security.InvalidAlgorithmParameterException: the trustAnchors parameter must be non-empty
-        // https://stackoverflow.com/questions/6784463/error-trustanchors-parameter-must-be-non-empty
-        // https://medium.com/@gustavocalcaterra/debugging-yet-another-ssl-tls-error-the-trustanchors-parameter-must-be-non-empty-7dd9cb300f43
-        // https://askubuntu.com/questions/1004745/java-cant-find-cacerts
-        // https://github.com/anapsix/docker-alpine-java/issues/27
-        // https://stackoverflow.com/questions/17935619/what-is-difference-between-cacerts-and-keystore
+        
         PCollection<ServiceControlLogEntry> allLogs = p.apply("logsTextRead", TextIO.read().from(filepattern))
             .apply("stringParsedToProtobuf", ParDo.of(new ParseStringToProtobufFn("json")));
 
@@ -762,78 +665,38 @@ public class LogAnalyticsPipeline {
             .apply("allLogsToLogMessage", ParDo.of(new EmitLogMessageFn(outputWithTimestamp)));
 
         /* (3) Apply windowing scheme */
-        // PCollection<LogMessage> allLogMessagesBySecond = allLogMessages
-        //     .apply("allLogMessageToSecondly", Window.<LogMessage>into(FixedWindows.of(Duration.standardSeconds(1)))); // one-sec duration
-
-        // PCollection<KV<String,Double>> serviceQueryCollection = allLogMessages
-        //     .apply("logMessageToServiceQuery", ParDo.of(new serviceQueryCollectionFn()))
-        //     .apply(Sum.<String>doublesPerKey()) // .apply(Combine.<String, Double, Double>perKey(Sum.ofDoubles()))
-        //     .apply("Print", ParDo.of(new PrintKVStringDoubleFn("Service Query")));
-        // PCollectionView<Map<String,Double>> output = serviceQueryCollection.apply(View.<String,Double>asMap());
+        // skip
 
         /* (4) Aggregate interesting fields */
-        PCollection<KV<String, Double>> timestampServiceQueries = getTimestampEntityFieldsCombinedWithinEachInterval(allLogMessages, timeInterval, "service", "query");
-        PCollection<KV<String, Double>> timestampServiceChecks  = getTimestampEntityFieldsCombinedWithinEachInterval(allLogMessages, timeInterval, "service", "check");
-        PCollection<KV<String, Double>> timestampServiceQuotas  = getTimestampEntityFieldsCombinedWithinEachInterval(allLogMessages, timeInterval, "service", "quota");
-        PCollection<KV<String, Double>> timestampServiceStatus  = getTimestampEntityFieldsCombinedWithinEachInterval(allLogMessages, timeInterval, "service", "status");
+        PCollection<KV<String, Double>> timestampEntityFields = getTimestampEntityFieldsCombinedWithinEachInterval(allLogMessages, timeInterval);
 
-        Map<String, PCollection<KV<String, Double>>> serviceQueryMinMaxSum  = getMinMaxSum(timestampServiceQueries, "service", "query");
-        Map<String, PCollection<KV<String, Double>>> serviceCheckMinMaxSum  = getMinMaxSum(timestampServiceChecks,  "service", "check");
-        Map<String, PCollection<KV<String, Double>>> serviceQuotaMinMaxSum  = getMinMaxSum(timestampServiceQuotas,  "service", "quota");
-        Map<String, PCollection<KV<String, Double>>> serviceStatusMinMaxSum = getMinMaxSum(timestampServiceStatus,  "service", "status");
+        Map<String, PCollection<KV<String, Double>>> entityFieldMinMaxSum  = getMinMaxSum(timestampEntityFields);
+        PCollection<KV<String, Double>> entityFieldSum = entityFieldMinMaxSum.get("sum");
 
-        PCollection<KV<String, Double>> serviceQueryPerInterval = serviceQueryMinMaxSum.get("sum")
-            .apply("", ParDo.of(new CalculateMeanPerIntervalFn(timeIntervalCount)))
-            .apply("Print", ParDo.of(new PrintKVStringDoubleFn("service" + "-" + "query" + " (PerInterval)")));;
+        PCollection<KV<String, Double>> entityFieldPerInteval = getMeanPerInterval(entityFieldSum, timeIntervalCount);
 
-        PCollection<KV<String, Double>> serviceQueryDev = getDeviation(serviceQueryMinMaxSum, "service", "query");
+        PCollection<KV<String, Double>> entityFieldDev = getDeviation(entityFieldMinMaxSum);
 
-        PCollection<KV<String, Double>> serviceCheckRatio  = getRatio(serviceQueryMinMaxSum.get("sum"), serviceCheckMinMaxSum.get("sum"),  "service", "check");
-        PCollection<KV<String, Double>> serviceQuotaRatio  = getRatio(serviceQueryMinMaxSum.get("sum"), serviceQuotaMinMaxSum.get("sum"),  "service", "quota");
-        PCollection<KV<String, Double>> serviceStatusRatio = getRatio(serviceQueryMinMaxSum.get("sum"), serviceStatusMinMaxSum.get("sum"), "service", "status");
+        PCollection<KV<String, Double>> serviceCheckRatio  = getRatio(entityFieldSum, "service_", "check_");
+        PCollection<KV<String, Double>> serviceQuotaRatio  = getRatio(entityFieldSum, "service_", "quota_");
+        PCollection<KV<String, Double>> serviceStatusRatio = getRatio(entityFieldSum, "service_", "status");
 
         /* (5) Store to BigQuery */
         System.out.println("GCS temp location to store temp files for BigQuery: " + bqTempLocation + "\n");
 
-        // allLogMessages.apply("servicesTableRow", ParDo.of(new ServicesTableRowFn()))
-        //     .apply("servicesToBigQuery", BigQueryIO.writeTableRows()
-        //         .to(options.getServicesTableName())
-        //         .withSchema(TableRowOutputTransform.createTableSchema(options.getServicesTableSchema()))
-        //         .withCustomGcsTempLocation(StaticValueProvider.of(options.getBQTempLocation()))
-        //         .withWriteDisposition(BigQueryIO.Write.WriteDisposition.WRITE_APPEND)
-        //         .withCreateDisposition(BigQueryIO.Write.CreateDisposition.CREATE_IF_NEEDED));
-
-        writeTimestampEntityFieldToBigQuery(timestampServiceQueries, "service", "query", 
+        writeTimestampEntityFieldToBigQuery(timestampEntityFields, 
                                             bqTempLocation, 
                                             options.getTimestampEntityFieldTableName(), 
                                             options.getTimestampEntityFieldTableSchema(),
-                                            BigQueryIO.Write.WriteDisposition.WRITE_APPEND); //
-        
-        writeTimestampEntityFieldToBigQuery(timestampServiceChecks,  "service", "check", 
-                                            bqTempLocation, 
-                                            options.getTimestampEntityFieldTableName(), 
-                                            options.getTimestampEntityFieldTableSchema(),
-                                            BigQueryIO.Write.WriteDisposition.WRITE_APPEND);
-        
-        writeTimestampEntityFieldToBigQuery(timestampServiceQuotas,  "service", "quota", 
-                                            bqTempLocation, 
-                                            options.getTimestampEntityFieldTableName(), 
-                                            options.getTimestampEntityFieldTableSchema(),
-                                            BigQueryIO.Write.WriteDisposition.WRITE_APPEND);
-        
-        writeTimestampEntityFieldToBigQuery(timestampServiceStatus,  "service", "status", 
-                                            bqTempLocation, 
-                                            options.getTimestampEntityFieldTableName(), 
-                                            options.getTimestampEntityFieldTableSchema(),
-                                            BigQueryIO.Write.WriteDisposition.WRITE_APPEND);
+                                            BigQueryIO.Write.WriteDisposition.WRITE_TRUNCATE); //
 
         Map<String, PCollection<KV<String, Double>>> serviceFieldStats = new HashMap<String, PCollection<KV<String, Double>>>();
-        serviceFieldStats.put("querySum",         serviceQueryMinMaxSum.get("sum"));
-        serviceFieldStats.put("checkSum",         serviceCheckMinMaxSum.get("sum"));
-        serviceFieldStats.put("quotaSum",         serviceQuotaMinMaxSum.get("sum"));
-        serviceFieldStats.put("statusSum",        serviceStatusMinMaxSum.get("sum"));
-        serviceFieldStats.put("queryPerInterval", serviceQueryPerInterval);
-        serviceFieldStats.put("queryDev",         serviceQueryDev);
+        serviceFieldStats.put("querySum",         doFilterAndRemoveKeyPrefix(entityFieldSum,        "service_-query_-"));
+        serviceFieldStats.put("checkSum",         doFilterAndRemoveKeyPrefix(entityFieldSum,        "service_-check_-"));
+        serviceFieldStats.put("quotaSum",         doFilterAndRemoveKeyPrefix(entityFieldSum,        "service_-quota_-"));
+        serviceFieldStats.put("statusSum",        doFilterAndRemoveKeyPrefix(entityFieldSum,        "service_-status-"));
+        serviceFieldStats.put("queryPerInterval", doFilterAndRemoveKeyPrefix(entityFieldPerInteval, "service_-query_-"));
+        serviceFieldStats.put("queryDev",         doFilterAndRemoveKeyPrefix(entityFieldDev,        "service_-query_-"));
         serviceFieldStats.put("checkRatio",       serviceCheckRatio);
         serviceFieldStats.put("quotaRatio",       serviceQuotaRatio);
         serviceFieldStats.put("statusRatio",      serviceStatusRatio);
@@ -841,6 +704,15 @@ public class LogAnalyticsPipeline {
                                             bqTempLocation,
                                             options.getServiceFieldStatsTableName(), 
                                             options.getServiceFieldStatsTableSchema());
+
+        Map<String, PCollection<KV<String, Double>>> consumerFieldStats = new HashMap<String, PCollection<KV<String, Double>>>();
+        consumerFieldStats.put("querySum",         doFilterAndRemoveKeyPrefix(entityFieldSum,        "consumer-query_-"));
+        consumerFieldStats.put("queryPerInterval", doFilterAndRemoveKeyPrefix(entityFieldPerInteval, "consumer-query_-"));
+        consumerFieldStats.put("queryDev",         doFilterAndRemoveKeyPrefix(entityFieldDev,        "consumer-query_-"));
+        writeConsumerFieldStatsToBigQuery(consumerFieldStats, 
+                                            bqTempLocation,
+                                            options.getConsumerFieldStatsTableName(), 
+                                            options.getConsumerFieldStatsTableSchema());
 
         System.out.println("[1] Run the pipeline...\n");
         PipelineResult r = p.run();
