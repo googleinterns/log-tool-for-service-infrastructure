@@ -20,34 +20,26 @@ import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.StreamingOptions;
 import org.apache.beam.sdk.options.Default;
 import org.apache.beam.sdk.options.Description;
-//
-import org.apache.beam.sdk.options.ValueProvider;
 
 @SuppressWarnings("unused")
 public interface LogAnalyticsPipelineOptions extends PipelineOptions {
     @Description("Location of logs, Cloud Storage path or Cloud Pub/Sub subscription")
-    @Default.String("input/Sample_log_*.csv")
-    // @Default.String("gs://alchemy-logdata/Sample_log_*.csv")
+    @Default.String("gs://alchemy-logdata/input/Sample_log_*") //"input/Sample_log_*.csv"
     String getLogSource();
     void setLogSource(String logSource);
-
-    // @Description("Regular expression pattern used to parse embedded log messages inside Cloud Logging entries")
-    // @Default.String("\\[GIN\\]\\s+(?<timestamp>\\d{4}/\\d{2}/\\d{2} \\- \\d{2}\\:\\d{2}\\:\\d{2})\\s\\|\\s+(?<httpStatusCode>\\d{3})\\s+\\|\\s+(?<responseTime>\\d+\\.?\\d*)(?<resolution>\\S{1,})\\s+\\|\\s+(?<source>[0-9\\.:]+?)\\s+\\|\\s+(?<httpMethod>\\w+?)\\s+(?<destination>[a-z0-9/]+)")
 
     @Description("BigQueryIO.Write needs a GCS temp location to store temp files")
     @Default.String("gs://alchemy-logdata/temp")
     String getBQTempLocation();
     void setBQTempLocation(String tempLocation);
-    // ValueProvider<String> getBQTempLocation(); //
-    // void setBQTempLocation(ValueProvider<String> bqTempLocation); //
 
     @Description("Time interval as \"windowing\"")
-    @Default.Long(1) // in second
+    @Default.Long(2) // in second
     long getTimeInterval();
     void setTimeInterval(long TimeInterval);
 
     @Description("Counts of time intervals")
-    @Default.Long(10) // in second
+    @Default.Long(5) // in second
     long getTimeIntervalCount();
     void setTimeIntervalCount(long TimeIntervalCount);
 
@@ -60,26 +52,6 @@ public interface LogAnalyticsPipelineOptions extends PipelineOptions {
     @Default.String("query") // "status", "check", "quota"
     String getFieldName();
     void setFieldName(String fieldName);
-
-    // @Description("BigQuery table name for service table")
-    // @Default.String("dataflow_log_analytics.service_table")
-    // String getServiceTableName();
-    // void setServiceTableName(String serviceTableName);
-
-    // @Description("BigQuery table schema for service table, comma-separated values of [field-name]:[TYPE]")
-    // @Default.String("serviceName:STRING,seconds:STRING,nanos:STRING,statusMessage:STRING")
-    // String getServiceTableSchema();
-    // void setServiceTableSchema(String serviceTableSchema);
-
-    // @Description("BigQuery table name for operation table")
-    // @Default.String("dataflow_log_analytics.operation_table")
-    // String getOperationTableName();
-    // void setOperationTableName(String operationTableName);
-
-    // @Description("BigQuery table schema for operation table, comma-separated values of [field-name]:[TYPE]")
-    // @Default.String("operationId:STRING,operationName:STRING,associatedServiceName:STRING,consumerProjectId:STRING,startSeconds:STRING,startNanos:STRING,endSeconds:STRING,endNanos:STRING")
-    // String getOperationTableSchema();
-    // void setOperationTableSchema(String operationTableSchema);
 
     @Description("BigQuery table name for timestamp_entity_field table")
     @Default.String("dataflow_log_analytics.timestamp_entity_field_table")
@@ -100,4 +72,14 @@ public interface LogAnalyticsPipelineOptions extends PipelineOptions {
     @Default.String("service:STRING,querySum:STRING,checkSum:STRING,quotaSum:STRING,statusSum:STRING,queryPerInterval:STRING,queryDev:STRING,checkRatio:STRING,quotaRatio:STRING,statusRatio:STRING")
     String getServiceFieldStatsTableSchema();
     void setServiceFieldStatsTableSchema(String serviceFieldStatsTableSchema);
+
+    @Description("BigQuery table name for consumer_field_stats table")
+    @Default.String("dataflow_log_analytics.consumer_field_stats_table")
+    String getConsumerFieldStatsTableName();
+    void setConsumerFieldStatsTableName(String consumerFieldStatsTableName);
+
+    @Description("BigQuery table schema for consumer_field_stats table, comma-separated values of [field-name]:[TYPE]")
+    @Default.String("consumer:STRING,querySum:STRING,queryPerInterval:STRING,queryDev:STRING")
+    String getConsumerFieldStatsTableSchema();
+    void setConsumerFieldStatsTableSchema(String consumerFieldStatsTableSchema);
 }
