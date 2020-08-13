@@ -89,6 +89,11 @@ public class LogAnalyticsPipeline {
 
     private static final Logger LOG = LoggerFactory.getLogger(LogAnalyticsPipeline.class);
 
+    /**
+     * ParseStringToProtobufFn is a custom DoFn that parses a ProtoBuf string
+     * The input format can be either JSON or text
+     * The output is an instance of ServiceControlLogEntry defined in ServiceExtensionProtos.java
+     */
     private static class ParseStringToProtobufFn extends DoFn<String, ServiceControlLogEntry> {
         private String format; 
 
@@ -134,6 +139,10 @@ public class LogAnalyticsPipeline {
         }
     }
 
+    /**
+     * EmitLogMessageFn is a custom DoFn that transforms ServiceControlLogEntry to LogMessage
+     * time_usec (as timestamp) is extracted from ServiceControlLogEntry and becomes a filed of LogMessage
+     */
     private static class EmitLogMessageFn extends DoFn<ServiceControlLogEntry, LogMessage> {
         // private boolean outputWithTimestamp;
 
@@ -165,6 +174,10 @@ public class LogAnalyticsPipeline {
         }
     }
 
+    /**
+     * PrintKVStringDoubleFn is a custom DoFn that prints the contents of KV<String, Double> in PCollection
+     * It can be used for debug
+     */
     private static class PrintKVStringDoubleFn extends DoFn<KV<String, Double>, KV<String, Double>> {
         private String heading;
 
@@ -180,6 +193,10 @@ public class LogAnalyticsPipeline {
         }
     }
 
+    /**
+     * RemoveKeyPrefixFn is a custom DoFn that removes the given prefix for a string as the key in a KV<String, Double>
+     * It can be used for unifying keys of PColeection<KV<String, Double>> for different fields of a same entity
+     */
     private static class RemoveKeyPrefixFn extends DoFn<KV<String, Double>, KV<String, Double>> {
         private String prefix;
 
@@ -194,6 +211,19 @@ public class LogAnalyticsPipeline {
         }
     }
 
+    /**
+     * TimestampAndEntityKeyedFieldValueFn is a custom DoFn that extracts timestamp/entity/field information from a LogMessage and creates multiple KV<String, Double>s
+     * The following are the format of the key string, which includes entity type, field name, timestamp, entity name (i.e., "${entityType}-${fieldName}-${timestamp}-${entityName}")
+     * Note that '_' is used to keep different values of a same field align for the convenience of future processing (e.g., removing)
+     * - service query count:         "service_-query_-${timestamp}-${serviceName}"
+     * - service check error count:   "service_-check_-${timestamp}-${serviceName}"
+     * - service quota error count:   "service_-quota_-${timestamp}-${serviceName}"
+     * - service not-OK status count: "service_-status-${timestamp}-${serviceName}"
+     * - consumer query count:        "consumer-query_-${timestamp}-${consumerName}"
+     * timestamp, a 10-digit number standing for epoch seconds, is the start seconds of the time interval that a piece of information belongs to 
+     * And it is not necessarily the same to its own epoch seconds
+     * Note that it can be confusing that "timestamp" actually refers to "time interval"
+     */
     private static class TimestampAndEntityKeyedFieldValueFn extends DoFn<LogMessage, KV<String, Double>> {
         private long interval;
 
@@ -226,6 +256,10 @@ public class LogAnalyticsPipeline {
         }
     }
 
+    /**
+     * EntityKeyedFieldValueFn is a custom DoFn that removes timestamp from a key string of KV<String, Double>
+     * e.g., "${entityType}-${fieldName}-${timestamp}-${entityName}" becomes "${entityType}-${fieldName}-${entityName}"
+     */
     private static class EntityKeyedFieldValueFn extends DoFn<KV<String, Double>, KV<String, Double>> {
         @ProcessElement
         public void processElement(ProcessContext c) throws Exception {
@@ -244,6 +278,10 @@ public class LogAnalyticsPipeline {
         }
     }
 
+    /**
+     * CalculateMeanPerIntervalFn is a custom DoFn that calculates mean per interval of a field for an entity
+     * e.g., query per second for a service
+     */
     private static class CalculateMeanPerIntervalFn extends DoFn<KV<String, Double>, KV<String, Double>> {
         private long timeIntervalCount;
 
@@ -260,6 +298,10 @@ public class LogAnalyticsPipeline {
         }
     }
 
+    /**
+     * CalculateDeviationFn is a custom DoFn that calculates deviation of a field for an entity
+     * (maximum count among all intervals - minimum count among all intervals) / all count among all intervals
+     */
     private static class CalculateDeviationFn extends DoFn<KV<String, CoGbkResult>, KV<String, Double>> {
         private TupleTag<Double> minTag;
         private TupleTag<Double> maxTag;
@@ -287,6 +329,10 @@ public class LogAnalyticsPipeline {
         }
     }
 
+    /**
+     * CalculateRatioFn is a custom DoFn that calculates the ratio of the total count of a field to that of queries for an entity
+     * all field count among all intervals / all queries among all intervals
+     */
     private static class CalculateRatioFn extends DoFn<KV<String, CoGbkResult>, KV<String, Double>> {
         private TupleTag<Double> querySumTag;
         private TupleTag<Double> fieldSumTag;
@@ -311,6 +357,11 @@ public class LogAnalyticsPipeline {
         }
     }
 
+    /**
+     * TimestampEntityFieldTableRowFn is a custom DoFn that transforms a KV<String, Double> of timestamp-entity-field to a TableRow for BigQuery storage
+     * The format of a key string: ${entityType}-${fieldName}-${timestamp}-${entityName}"
+     * The value is a Double of field value
+     */
     private static class TimestampEntityFieldTableRowFn extends DoFn<KV<String, Double>, TableRow> {
         @ProcessElement
         public void processElement(ProcessContext c) {
@@ -333,6 +384,11 @@ public class LogAnalyticsPipeline {
         }
     }
 
+    /**
+     * ServiceFieldStatTableRowFn is a custom DoFn that transforms a KV<String, CoGbkResult> of service-fiels-stats to a TableRow for BigQuery storage
+     * The key string is the name of a service
+     * The value, as a result of CoGroupByKey operations, contains multiple tagged field stats (e.g., min check errors, ratio of not-OK status) for the keyed service 
+     */
     private static class ServiceFieldStatTableRowFn extends DoFn<KV<String, CoGbkResult>, TableRow> {
         private TupleTag<Double> querySumTag;
         private TupleTag<Double> checkSumTag;
@@ -388,6 +444,11 @@ public class LogAnalyticsPipeline {
         }
     }
 
+    /**
+     * ConsumerFieldStatTableRowFn is a custom DoFn that transforms a KV<String, CoGbkResult> of consumer-field-stats to a TableRow for BigQuery storage
+     * The key string is the name of a consumer
+     * The value, as a result of CoGroupByKey operations, contains multiple tagged field (so far query only) stats for the keyed consumer 
+     */
     private static class ConsumerFieldStatTableRowFn extends DoFn<KV<String, CoGbkResult>, TableRow> {
         private TupleTag<Double> querySumTag;
         // private TupleTag<Double> checkSumTag;
@@ -425,6 +486,10 @@ public class LogAnalyticsPipeline {
         }
     }
 
+    /**
+     * TableRowOutputTransform is a custom DoFn that outputs TableRow to BigQuery 
+     * Accoding to given table name and table schema
+     */
     private static class TableRowOutputTransform extends PTransform<PCollection<KV<String,Double>>,PCollection<TableRow>> {
         private String tableSchema;
         private String tableName;
@@ -471,6 +536,11 @@ public class LogAnalyticsPipeline {
         }
     }
 
+    /**
+     * getTimestampEntityFieldsCombinedWithinEachInterval is a custom function that
+     * - Transforms LogMessage to KV<String, Double> ("${entityType}-${fieldName}-${timestamp}-${entityName}", ${fieldValue})
+     * - Sums up field values with same key (same time interval, same entity name, same field name)
+     */
     private static PCollection<KV<String, Double>> getTimestampEntityFieldsCombinedWithinEachInterval(PCollection<LogMessage> allLogMessages, long interval) {
         PCollection<KV<String, Double>> res = allLogMessages
             .apply("", ParDo.of(new TimestampAndEntityKeyedFieldValueFn(interval)))
@@ -479,6 +549,12 @@ public class LogAnalyticsPipeline {
         return res;
     }
 
+    /**
+     * doFilterAndRemoveKeyPrefix is a custom function that
+     * - Filters KV<String, Double> by the prefix of key string
+     * - Removes the prefix of filtered key string
+     * It can be used for unifying keys of PColeection<KV<String, Double>> for different fields of a same entity
+     */
     private static PCollection<KV<String, Double>> doFilterAndRemoveKeyPrefix(PCollection<KV<String, Double>> pc, String prefix) {
         PCollection<KV<String, Double>> res = pc
             .apply(Filter.by(new SerializableFunction<KV<String, Double>, Boolean>() {
@@ -491,6 +567,13 @@ public class LogAnalyticsPipeline {
         return res;
     }
 
+    /**
+     * getMinMaxSum is a custom function that processes a PCollection of KV<String, Double> as timestamp-entity-field ("${entityType}-${fieldName}-${timestamp}-${entityName}", ${fieldValue}):
+     * - Gets min: KV<String, Double> ("${entityType}-${fieldName}-${entityName}", ${minimumFieldValueAmongAllTimeIntervals})
+     * - Gets max: KV<String, Double> ("${entityType}-${fieldName}-${entityName}", ${maximumFieldValueAmongAllTimeIntervals})
+     * - Gets sum: KV<String, Double> ("${entityType}-${fieldName}-${entityName}", ${totalFieldValueAmongAllTimeIntervals})
+     * The results are put into a Map instance
+     */
     private static Map<String, PCollection<KV<String, Double>>> getMinMaxSum(PCollection<KV<String, Double>> timestampEntityFields) {
         PCollection<KV<String, Double>> entityField = timestampEntityFields
             .apply("", ParDo.of(new EntityKeyedFieldValueFn()));
@@ -514,6 +597,10 @@ public class LogAnalyticsPipeline {
         return res;
     }
 
+    /**
+     * getMeanPerInterval is a custom function that processes a PCollection of KV<String, Double> as entity-field-sum ("${entityType}-${fieldName}-${entityName}", ${totalFieldValueAmongAllTimeIntervals}):
+     * Gets mean per interval: KV<String, Double> ("${entityType}-${fieldName}-${entityName}", ${meanFieldValuePerTimeInterval})
+     */
     private static PCollection<KV<String, Double>> getMeanPerInterval(PCollection<KV<String, Double>> entityFieldSum, long timeIntervalCount) {
         PCollection<KV<String, Double>> res = entityFieldSum
             .apply("", ParDo.of(new CalculateMeanPerIntervalFn(timeIntervalCount)))
@@ -522,6 +609,11 @@ public class LogAnalyticsPipeline {
         return res;
     }
 
+    /**
+     * getDeviation is a custom function that processes a Map with values of PCollection of KV<String, Double> as entity-field-stats (stats: min/max/sum)
+     * Gets deviation: KV<String, Double> ("${entityType}-${fieldName}-${entityName}", ${deviationFieldValueAmongAllTimeIntervals})
+     * The way to calculate deviation is given in CalculateDeviationFn
+     */
     private static PCollection<KV<String, Double>> getDeviation(Map<String, PCollection<KV<String, Double>>> entityFieldMinMaxSum) {
         final TupleTag<Double> minTag = new TupleTag<Double>();
         final TupleTag<Double> maxTag = new TupleTag<Double>();
@@ -540,6 +632,10 @@ public class LogAnalyticsPipeline {
         return res;
     }
 
+    /**
+     * getRatio is a custom function that processes a of PCollection of KV<String, Double> as entity-field-stats (field: query/other, stats: sum)
+     * Gets ratio: KV<String, Double> ("${entityType}-${fieldName}-${entityName}", ${FieldValueOverQueriesAmongAllTimeIntervals})
+     */
     private static PCollection<KV<String, Double>> getRatio(PCollection<KV<String, Double>> entityFieldSum, String entityType, String fieldName) {
         // filter and rename key first
         PCollection<KV<String, Double>> specificEntityQuerySum = doFilterAndRemoveKeyPrefix(entityFieldSum, entityType + "-" + "query_"  + "-");
@@ -560,6 +656,9 @@ public class LogAnalyticsPipeline {
         return res;
     }
 
+    /**
+     * writeTimestampEntityFieldToBigQuery is a custom function that outputs PCollection<KV<String, Double>> as timestamp-entity-field to BigQuery
+     */
     private static boolean writeTimestampEntityFieldToBigQuery(PCollection<KV<String, Double>> timestampEntityFields, String bqTempLocation, String tableName, String tableSchema, BigQueryIO.Write.WriteDisposition writeDisposition) {
         timestampEntityFields.apply("", ParDo.of(new TimestampEntityFieldTableRowFn()))
             .apply("ToBigQuery", BigQueryIO.writeTableRows()
@@ -572,6 +671,9 @@ public class LogAnalyticsPipeline {
         return true;
     }
 
+    /**
+     * writeServiceFieldStatsToBigQuery is a custom function that outputs Map<String, PCollection<KV<String, Double>>> as service-field-stats to BigQuery
+     */
     private static boolean writeServiceFieldStatsToBigQuery(Map<String, PCollection<KV<String, Double>>> serviceFieldStats, String bqTempLocation, String tableName, String tableSchema) {
         final TupleTag<Double> querySumTag          = new TupleTag<Double>();
         final TupleTag<Double> checkSumTag          = new TupleTag<Double>();
@@ -607,6 +709,9 @@ public class LogAnalyticsPipeline {
 
     }
 
+    /**
+     * writeConsumerFieldStatsToBigQuery is a custom function that outputs Map<String, PCollection<KV<String, Double>>> as consumer-field-stats to BigQuery
+     */
     private static boolean writeConsumerFieldStatsToBigQuery(Map<String, PCollection<KV<String, Double>>> stats, String bqTempLocation, String tableName, String tableSchema) {
         final TupleTag<Double> querySumTag          = new TupleTag<Double>();
         // final TupleTag<Double> checkSumTag       = new TupleTag<Double>();
@@ -665,9 +770,14 @@ public class LogAnalyticsPipeline {
             .apply("allLogsToLogMessage", ParDo.of(new EmitLogMessageFn(outputWithTimestamp)));
 
         /* (3) Apply windowing scheme */
-        // skip
+        /** Skip
+         * It seems that there is no provided functions to aggregate over windows
+         * TODO: Need more research later
+         */
 
-        /* (4) Aggregate interesting fields */
+        /** (4) Aggregate interesting fields for entities within each time interval, 
+         * and calculate statistical information among all time intervals
+         */
         PCollection<KV<String, Double>> timestampEntityFields = getTimestampEntityFieldsCombinedWithinEachInterval(allLogMessages, timeInterval);
 
         Map<String, PCollection<KV<String, Double>>> entityFieldMinMaxSum  = getMinMaxSum(timestampEntityFields);
