@@ -81,6 +81,7 @@ import java.text.SimpleDateFormat;
 import java.time.ZoneId;
 import java.util.Map;
 import java.util.HashMap;
+import java.lang.StackTraceElement;
 
 
 
@@ -118,6 +119,14 @@ public class LogAnalyticsPipeline {
                 catch(com.google.protobuf.InvalidProtocolBufferException e) {
                     LOG.error(e.getMessage());
                     System.out.println(e.getMessage());
+
+                    StackTraceElement[] stktrace = e.getStackTrace();
+                    for (int i = 0; i < stktrace.length; i++) { 
+                        LOG.error("Index " + i 
+                                           + " of stack trace"
+                                           + " array conatins = "
+                                           + stktrace[i].toString()); 
+                    } 
                 }
             } else {
                 try {
@@ -385,9 +394,9 @@ public class LogAnalyticsPipeline {
     }
 
     /**
-     * TimestampServiceFieldListTableRowFn is a custom DoFn that transforms a KV<String, CoGbkResult> of service-fiels-stats to a TableRow for BigQuery storage
+     * TimestampServiceFieldListTableRowFn is a custom DoFn that transforms a KV<String, CoGbkResult> of service-field-list to a TableRow for BigQuery storage
      * The key string is the name of a service
-     * The value, as a result of CoGroupByKey operations, contains multiple tagged field stats (e.g., min check errors, ratio of not-OK status) for the keyed service 
+     * The value, as a result of CoGroupByKey operations, contains multiple tagged field list (e.g., check error count, not-OK status count) for the keyed service 
      */
     private static class TimestampServiceFieldListTableRowFn extends DoFn<KV<String, CoGbkResult>, TableRow> {
         private TupleTag<Double> queryTag;
