@@ -385,6 +385,49 @@ public class LogAnalyticsPipeline {
     }
 
     /**
+     * TimestampServiceFieldListTableRowFn is a custom DoFn that transforms a KV<String, CoGbkResult> of service-fiels-stats to a TableRow for BigQuery storage
+     * The key string is the name of a service
+     * The value, as a result of CoGroupByKey operations, contains multiple tagged field stats (e.g., min check errors, ratio of not-OK status) for the keyed service 
+     */
+    private static class TimestampServiceFieldListTableRowFn extends DoFn<KV<String, CoGbkResult>, TableRow> {
+        private TupleTag<Double> queryTag;
+        private TupleTag<Double> checkTag;
+        private TupleTag<Double> quotaTag;
+        private TupleTag<Double> statusTag;
+
+        public TimestampServiceFieldListTableRowFn(TupleTag<Double> queryTag, TupleTag<Double> checkTag, TupleTag<Double> quotaTag, TupleTag<Double> statusTag) {
+            this.queryTag   = queryTag;
+            this.checkTag   = checkTag;
+            this.quotaTag   = quotaTag;
+            this.statusTag  = statusTag;
+        }
+
+        @ProcessElement
+        public void processElement(ProcessContext c) throws Exception {
+            KV<String, CoGbkResult> kv = c.element();
+            String key = kv.getKey();
+            CoGbkResult coGbkResult = kv.getValue();
+
+            String timestamp = key.substring(0, 10); //TODO: adjust hard-coded timestamp length (10)
+            String serviceName = key.substring(10+1); // 
+
+            Double query   = coGbkResult.getOnly(queryTag);
+            Double check   = coGbkResult.getOnly(checkTag);
+            Double quota   = coGbkResult.getOnly(quotaTag);
+            Double status  = coGbkResult.getOnly(statusTag);
+
+            TableRow row = new TableRow()
+                .set("seconds", timestamp)
+                .set("service", serviceName)
+                .set("query",   query  + "")
+                .set("check",   check  + "")
+                .set("quota",   quota  + "")
+                .set("status",  status + "");
+            c.output(row);
+        }
+    }
+
+    /**
      * ServiceFieldStatTableRowFn is a custom DoFn that transforms a KV<String, CoGbkResult> of service-fiels-stats to a TableRow for BigQuery storage
      * The key string is the name of a service
      * The value, as a result of CoGroupByKey operations, contains multiple tagged field stats (e.g., min check errors, ratio of not-OK status) for the keyed service 
@@ -672,6 +715,34 @@ public class LogAnalyticsPipeline {
     }
 
     /**
+     * writeTimestampServiceFieldListsToBigQuery is a custom function that outputs Map<String, PCollection<KV<String, Double>>> as timestamp-service-field-lists to BigQuery
+     */
+    private static boolean writeTimestampServiceFieldListsToBigQuery(Map<String, PCollection<KV<String, Double>>> timestampServiceFieldLists, String bqTempLocation, String tableName, String tableSchema) {
+        final TupleTag<Double> queryTag  = new TupleTag<Double>();
+        final TupleTag<Double> checkTag  = new TupleTag<Double>();
+        final TupleTag<Double> quotaTag  = new TupleTag<Double>();
+        final TupleTag<Double> statusTag = new TupleTag<Double>();
+        
+        PCollection<KV<String, CoGbkResult>> joined = KeyedPCollectionTuple
+            .of(queryTag,   timestampServiceFieldLists.get("query"))
+            .and(checkTag,  timestampServiceFieldLists.get("check"))
+            .and(quotaTag,  timestampServiceFieldLists.get("quota"))
+            .and(statusTag, timestampServiceFieldLists.get("status"))
+            .apply(CoGroupByKey.<String>create());
+
+        joined.apply("", ParDo.of(new TimestampServiceFieldListTableRowFn(queryTag, checkTag, quotaTag, statusTag)))
+            .apply("ToBigQuery", BigQueryIO.writeTableRows()
+                .to(tableName)
+                .withSchema(TableRowOutputTransform.createTableSchema(tableSchema))
+                .withCustomGcsTempLocation(StaticValueProvider.of(bqTempLocation))
+                .withWriteDisposition(BigQueryIO.Write.WriteDisposition.WRITE_TRUNCATE) // WRITE_APPEND
+                .withCreateDisposition(BigQueryIO.Write.CreateDisposition.CREATE_IF_NEEDED));
+
+        return true;
+
+    }
+
+    /**
      * writeServiceFieldStatsToBigQuery is a custom function that outputs Map<String, PCollection<KV<String, Double>>> as service-field-stats to BigQuery
      */
     private static boolean writeServiceFieldStatsToBigQuery(Map<String, PCollection<KV<String, Double>>> serviceFieldStats, String bqTempLocation, String tableName, String tableSchema) {
@@ -799,6 +870,16 @@ public class LogAnalyticsPipeline {
                                             options.getTimestampEntityFieldTableName(), 
                                             options.getTimestampEntityFieldTableSchema(),
                                             BigQueryIO.Write.WriteDisposition.WRITE_TRUNCATE); //
+
+        Map<String, PCollection<KV<String, Double>>> timestampServiceFieldLists = new HashMap<String, PCollection<KV<String, Double>>>();
+        timestampServiceFieldLists.put("query",  doFilterAndRemoveKeyPrefix(timestampEntityFields, "service_-query_-"));
+        timestampServiceFieldLists.put("check",  doFilterAndRemoveKeyPrefix(timestampEntityFields, "service_-check_-"));
+        timestampServiceFieldLists.put("quota",  doFilterAndRemoveKeyPrefix(timestampEntityFields, "service_-quota_-"));
+        timestampServiceFieldLists.put("status", doFilterAndRemoveKeyPrefix(timestampEntityFields, "service_-status-"));
+        writeTimestampServiceFieldListsToBigQuery(timestampServiceFieldLists, 
+                                            bqTempLocation,
+                                            options.getTimestampServiceFieldListTableName(), 
+                                            options.getTimestampServiceFieldListTableSchema());
 
         Map<String, PCollection<KV<String, Double>>> serviceFieldStats = new HashMap<String, PCollection<KV<String, Double>>>();
         serviceFieldStats.put("querySum",         doFilterAndRemoveKeyPrefix(entityFieldSum,        "service_-query_-"));
