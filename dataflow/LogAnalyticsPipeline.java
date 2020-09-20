@@ -73,6 +73,7 @@ import org.apache.beam.sdk.transforms.join.CoGroupByKey;
 import org.apache.beam.sdk.transforms.join.CoGbkResult;
 import org.apache.beam.sdk.transforms.join.KeyedPCollectionTuple;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO.Write.WriteDisposition;
+import org.apache.beam.sdk.testing.PAssert;
 import org.joda.time.DateTimeZone;
 import org.joda.time.DateTime;
 
@@ -198,6 +199,7 @@ public class LogAnalyticsPipeline {
         public void processElement(ProcessContext c) throws Exception {
             KV<String, Double> kv = c.element();
             System.out.println(heading + ": " + kv.toString());
+            LOG.info(heading + ": " + kv.toString());
             c.output(kv);
         }
     }
@@ -597,7 +599,7 @@ public class LogAnalyticsPipeline {
         PCollection<KV<String, Double>> res = allLogMessages
             .apply("", ParDo.of(new TimestampAndEntityKeyedFieldValueFn(interval)))
             .apply(Combine.<String, Double, Double>perKey(Sum.ofDoubles())) // .apply(Sum.<String>doublesPerKey())
-            .apply("Print", ParDo.of(new PrintKVStringDoubleFn("")));
+            .apply("Print", ParDo.of(new PrintKVStringDoubleFn("TimestampEntityFields")));
         return res;
     }
 
@@ -836,6 +838,14 @@ public class LogAnalyticsPipeline {
         String entityType = options.getEntityType();
         String fieldName = options.getFieldName();
 
+        /* TODO: Test with PAssert */
+        // String runtimeMode = options.getRuntimeMode(); //
+        // if (runtimeMode.equals("TEST")) {
+        //     filepattern = "gs://alchemy-logdata/input/Sample_log_*";
+        //     timeInterval = 1;
+        //     timeIntervalCount = 10;
+        // }
+
         System.out.println("[0] Create a pipeline...\n");
         Pipeline p = Pipeline.create(options);
 
@@ -870,6 +880,98 @@ public class LogAnalyticsPipeline {
         PCollection<KV<String, Double>> serviceCheckRatio  = getRatio(entityFieldSum, "service_", "check_");
         PCollection<KV<String, Double>> serviceQuotaRatio  = getRatio(entityFieldSum, "service_", "quota_");
         PCollection<KV<String, Double>> serviceStatusRatio = getRatio(entityFieldSum, "service_", "status");
+
+        /* TODO: Test with PAssert */
+        // if (runtimeMode.equals("TEST")) {
+        //     // static final List<KV<String, Double>> KV_ARRAY = new ArrayList<KV<String, Double>>();
+        //     List<KV<String, Double>> KV_ARRAY = new ArrayList<KV<String, Double>>();
+        //     KV_ARRAY.add(KV.of("service_-query_-1593416510-staging-pubsub.sandbox.googleapis.com", 3.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-1593416511-staging-pubsub.sandbox.googleapis.com", 2.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-1593416512-staging-pubsub.sandbox.googleapis.com", 4.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-1593416513-staging-pubsub.sandbox.googleapis.com", 13.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-1593416514-staging-pubsub.sandbox.googleapis.com", 4.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-1593416515-staging-pubsub.sandbox.googleapis.com", 4.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-1593416516-staging-pubsub.sandbox.googleapis.com", 4.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-1593416517-staging-pubsub.sandbox.googleapis.com", 3.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-1593416518-staging-pubsub.sandbox.googleapis.com", 4.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-1593416519-staging-pubsub.sandbox.googleapis.com", 3.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-1593416510-staging-storage.sandbox.googleapis.com", 2.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-1593416511-staging-storage.sandbox.googleapis.com", 3.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-1593416512-staging-storage.sandbox.googleapis.com", 3.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-1593416513-staging-storage.sandbox.googleapis.com", 31.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-1593416514-staging-storage.sandbox.googleapis.com", 1.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-1593416515-staging-storage.sandbox.googleapis.com", 3.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-1593416516-staging-storage.sandbox.googleapis.com", 2.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-1593416517-staging-storage.sandbox.googleapis.com", 4.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-1593416518-staging-storage.sandbox.googleapis.com", 4.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-1593416519-staging-storage.sandbox.googleapis.com", 3.0));
+        //     KV_ARRAY.add(KV.of("service_-status-1593416513-staging-pubsub.sandbox.googleapis.com", 2.0));
+        //     KV_ARRAY.add(KV.of("service_-status-1593416514-staging-pubsub.sandbox.googleapis.com", 1.0));
+        //     KV_ARRAY.add(KV.of("service_-status-1593416515-staging-pubsub.sandbox.googleapis.com", 1.0));
+        //     KV_ARRAY.add(KV.of("service_-check_-1593416513-staging-pubsub.sandbox.googleapis.com", 3.0));
+        //     KV_ARRAY.add(KV.of("service_-check_-1593416514-staging-pubsub.sandbox.googleapis.com", 2.0));
+        //     KV_ARRAY.add(KV.of("service_-check_-1593416515-staging-pubsub.sandbox.googleapis.com", 3.0));
+        //     //
+        //     PAssert.that(timestampEntityFields).containsInAnyOrder(KV_ARRAY);
+
+        //     //
+        //     KV_ARRAY.clear();
+        //     KV_ARRAY.add(KV.of("service_-query_-staging-pubsub.sandbox.googleapis.com", 2.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-staging-storage.sandbox.googleapis.com", 1.0));
+        //     KV_ARRAY.add(KV.of("service_-status-staging-pubsub.sandbox.googleapis.com", 1.0));
+        //     KV_ARRAY.add(KV.of("service_-check_-staging-pubsub.sandbox.googleapis.com", 2.0));
+        //     //
+        //     PAssert.that(entityFieldMinMaxSum.get("min")).containsInAnyOrder(KV_ARRAY);
+
+        //     //
+        //     KV_ARRAY.clear();
+        //     KV_ARRAY.add(KV.of("service_-query_-staging-pubsub.sandbox.googleapis.com", 13.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-staging-storage.sandbox.googleapis.com", 31.0));
+        //     KV_ARRAY.add(KV.of("service_-status-staging-pubsub.sandbox.googleapis.com", 2.0));
+        //     KV_ARRAY.add(KV.of("service_-check_-staging-pubsub.sandbox.googleapis.com", 3.0));
+        //     //
+        //     PAssert.that(entityFieldMinMaxSum.get("max")).containsInAnyOrder(KV_ARRAY);
+
+        //     //
+        //     KV_ARRAY.clear();
+        //     KV_ARRAY.add(KV.of("service_-query_-staging-pubsub.sandbox.googleapis.com", 44.0));
+        //     KV_ARRAY.add(KV.of("service_-query_-staging-storage.sandbox.googleapis.com", 56.0));
+        //     KV_ARRAY.add(KV.of("service_-status-staging-pubsub.sandbox.googleapis.com", 4.0));
+        //     KV_ARRAY.add(KV.of("service_-check_-staging-pubsub.sandbox.googleapis.com", 8.0));
+        //     //
+        //     PAssert.that(entityFieldMinMaxSum.get("sum")).containsInAnyOrder(KV_ARRAY);
+
+        //     //
+        //     KV_ARRAY.clear();
+        //     KV_ARRAY.add(KV.of("service_-query_-staging-pubsub.sandbox.googleapis.com", 4.4));
+        //     KV_ARRAY.add(KV.of("service_-query_-staging-storage.sandbox.googleapis.com", 5.6));
+        //     //
+        //     PAssert.that(entityFieldPerInteval).containsInAnyOrder(KV_ARRAY);
+
+        //     //
+        //     KV_ARRAY.clear();
+        //     KV_ARRAY.add(KV.of("service_-query_-staging-pubsub.sandbox.googleapis.com", 0.25));
+        //     KV_ARRAY.add(KV.of("service_-query_-staging-storage.sandbox.googleapis.com", 0.54));
+        //     //
+        //     PAssert.that(entityFieldDev).containsInAnyOrder(KV_ARRAY);
+
+        //     //
+        //     KV_ARRAY.clear();
+        //     KV_ARRAY.add(KV.of("service_-query_-staging-pubsub.sandbox.googleapis.com", 0.18));
+        //     //
+        //     PAssert.that(serviceCheckRatio).containsInAnyOrder(KV_ARRAY);
+
+        //     //
+        //     KV_ARRAY.clear();
+        //     //
+        //     PAssert.that(serviceQuotaRatio).containsInAnyOrder(KV_ARRAY);
+
+        //     //
+        //     KV_ARRAY.clear();
+        //     KV_ARRAY.add(KV.of("service_-query_-staging-pubsub.sandbox.googleapis.com", 0.09));
+        //     //
+        //     PAssert.that(serviceStatusRatio).containsInAnyOrder(KV_ARRAY);
+        // }
 
         /* (5) Store to BigQuery */
         System.out.println("GCS temp location to store temp files for BigQuery: " + bqTempLocation + "\n");
