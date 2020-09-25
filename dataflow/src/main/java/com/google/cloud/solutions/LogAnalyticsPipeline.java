@@ -403,15 +403,15 @@ public class LogAnalyticsPipeline {
      */
     protected static class TimestampServiceFieldListTableRowFn extends DoFn<KV<String, CoGbkResult>, TableRow> {
         private TupleTag<Double> queryTag;
-        private TupleTag<Double> checkTag;
-        private TupleTag<Double> quotaTag;
-        private TupleTag<Double> statusTag;
+        private TupleTag<Double> checkErrorTag;
+        private TupleTag<Double> quotaErrorTag;
+        private TupleTag<Double> stautsErrorTag;
 
-        public TimestampServiceFieldListTableRowFn(TupleTag<Double> queryTag, TupleTag<Double> checkTag, TupleTag<Double> quotaTag, TupleTag<Double> statusTag) {
+        public TimestampServiceFieldListTableRowFn(TupleTag<Double> queryTag, TupleTag<Double> checkErrorTag, TupleTag<Double> quotaErrorTag, TupleTag<Double> stautsErrorTag) {
             this.queryTag   = queryTag;
-            this.checkTag   = checkTag;
-            this.quotaTag   = quotaTag;
-            this.statusTag  = statusTag;
+            this.checkErrorTag   = checkErrorTag;
+            this.quotaErrorTag   = quotaErrorTag;
+            this.stautsErrorTag  = stautsErrorTag;
         }
 
         @ProcessElement
@@ -424,9 +424,9 @@ public class LogAnalyticsPipeline {
             String serviceName = key.substring(10+1); // 
 
             Double query   = coGbkResult.getOnly(queryTag);
-            Double check   = coGbkResult.getOnly(checkTag);
-            Double quota   = coGbkResult.getOnly(quotaTag);
-            Double status  = coGbkResult.getOnly(statusTag);
+            Double check   = coGbkResult.getOnly(checkErrorTag);
+            Double quota   = coGbkResult.getOnly(quotaErrorTag);
+            Double status  = coGbkResult.getOnly(stautsErrorTag);
 
             TableRow row = new TableRow()
                 .set("seconds", timestamp)
@@ -446,26 +446,26 @@ public class LogAnalyticsPipeline {
      */
     protected static class ServiceFieldStatTableRowFn extends DoFn<KV<String, CoGbkResult>, TableRow> {
         private TupleTag<Double> querySumTag;
-        private TupleTag<Double> checkSumTag;
-        private TupleTag<Double> quotaSumTag;
-        private TupleTag<Double> statusSumTag;
+        private TupleTag<Double> checkErrorSumTag;
+        private TupleTag<Double> quotaErrorSumTag;
+        private TupleTag<Double> statusErrorSumTag;
         private TupleTag<Double> queryPerIntervalTag;
         private TupleTag<Double> queryDevTag;
-        private TupleTag<Double> checkRatioTag;
-        private TupleTag<Double> quotaRatioTag;
-        private TupleTag<Double> statusRatioTag;
+        private TupleTag<Double> checkErrorRatioTag;
+        private TupleTag<Double> quotaErrorRatioTag;
+        private TupleTag<Double> statusErrorRatioTag;
 
-        public ServiceFieldStatTableRowFn(TupleTag<Double> querySumTag, TupleTag<Double> checkSumTag, TupleTag<Double> quotaSumTag, TupleTag<Double> statusSumTag, 
-                                            TupleTag<Double> queryPerIntervalTag, TupleTag<Double> queryDevTag, TupleTag<Double> checkRatioTag, TupleTag<Double> quotaRatioTag, TupleTag<Double> statusRatioTag) {
-            this.querySumTag          = querySumTag;
-            this.checkSumTag          = checkSumTag;
-            this.quotaSumTag          = quotaSumTag;
-            this.statusSumTag         = statusSumTag;
-            this.queryPerIntervalTag  = queryPerIntervalTag;
-            this.queryDevTag          = queryDevTag;
-            this.checkRatioTag        = checkRatioTag;
-            this.quotaRatioTag        = quotaRatioTag;
-            this.statusRatioTag       = statusRatioTag;
+        public ServiceFieldStatTableRowFn(TupleTag<Double> querySumTag, TupleTag<Double> checkErrorSumTag, TupleTag<Double> quotaErrorSumTag, TupleTag<Double> statusErrorSumTag, 
+                                            TupleTag<Double> queryPerIntervalTag, TupleTag<Double> queryDevTag, TupleTag<Double> checkErrorRatioTag, TupleTag<Double> quotaErrorRatioTag, TupleTag<Double> statusErrorRatioTag) {
+            this.querySumTag               = querySumTag;
+            this.checkErrorSumTag          = checkErrorSumTag;
+            this.quotaErrorSumTag          = quotaErrorSumTag;
+            this.statusErrorSumTag         = statusErrorSumTag;
+            this.queryPerIntervalTag       = queryPerIntervalTag;
+            this.queryDevTag               = queryDevTag;
+            this.checkErrorRatioTag        = checkErrorRatioTag;
+            this.quotaErrorRatioTag        = quotaErrorRatioTag;
+            this.statusErrorRatioTag       = statusErrorRatioTag;
         }
 
         @ProcessElement
@@ -474,27 +474,27 @@ public class LogAnalyticsPipeline {
             String serviceName = kv.getKey();
             CoGbkResult coGbkResult = kv.getValue();
 
-            Double querySum         = coGbkResult.getOnly(querySumTag);
-            Double checkSum         = coGbkResult.getOnly(checkSumTag);
-            Double quotaSum         = coGbkResult.getOnly(quotaSumTag);
-            Double statusSum        = coGbkResult.getOnly(statusSumTag);
-            Double queryPerInterval = coGbkResult.getOnly(queryPerIntervalTag);
-            Double queryDev         = coGbkResult.getOnly(queryDevTag);
-            Double checkRatio       = coGbkResult.getOnly(checkRatioTag);
-            Double quotaRatio       = coGbkResult.getOnly(quotaRatioTag);
-            Double statusRatio      = coGbkResult.getOnly(statusRatioTag);
+            Double querySum              = coGbkResult.getOnly(querySumTag);
+            Double checkErrorSum         = coGbkResult.getOnly(checkErrorSumTag);
+            Double quotaErrorSum         = coGbkResult.getOnly(quotaErrorSumTag);
+            Double statusErrorSum        = coGbkResult.getOnly(statusErrorSumTag);
+            Double queryPerInterval      = coGbkResult.getOnly(queryPerIntervalTag);
+            Double queryDev              = coGbkResult.getOnly(queryDevTag);
+            Double checkErrorRatio       = coGbkResult.getOnly(checkErrorRatioTag);
+            Double quotaErrorRatio       = coGbkResult.getOnly(quotaErrorRatioTag);
+            Double statusErrorRatio      = coGbkResult.getOnly(statusErrorRatioTag);
 
             TableRow row = new TableRow()
-                .set("service",          serviceName)
-                .set("querySum",         querySum          + "")
-                .set("checkSum",         checkSum          + "")
-                .set("quotaSum",         quotaSum          + "")
-                .set("statusSum",        statusSum         + "")
-                .set("queryPerInterval", queryPerInterval  + "")
-                .set("queryDev",         queryDev          + "")
-                .set("checkRatio",       checkRatio        + "")
-                .set("quotaRatio",       quotaRatio        + "")
-                .set("statusRatio",      statusRatio       + "");
+                .set("service",               serviceName)
+                .set("querySum",              querySum          + "")
+                .set("checkErrorSum",         checkErrorSum          + "")
+                .set("quotaErrorSum",         quotaErrorSum          + "")
+                .set("statusErrorSum",        statusErrorSum         + "")
+                .set("queryPerInterval",      queryPerInterval  + "")
+                .set("queryDev",              queryDev          + "")
+                .set("checkErrorRatio",       checkErrorRatio        + "")
+                .set("quotaErrorRatio",       quotaErrorRatio        + "")
+                .set("statusErrorRatio",      statusErrorRatio       + "");
             c.output(row);
         }
     }
@@ -506,14 +506,14 @@ public class LogAnalyticsPipeline {
      */
     protected static class ConsumerFieldStatTableRowFn extends DoFn<KV<String, CoGbkResult>, TableRow> {
         private TupleTag<Double> querySumTag;
-        // private TupleTag<Double> checkSumTag;
-        // private TupleTag<Double> quotaSumTag;
-        // private TupleTag<Double> statusSumTag;
+        // private TupleTag<Double> checkErrorSumTag;
+        // private TupleTag<Double> quotaErrorSumTag;
+        // private TupleTag<Double> statusErrorSumTag;
         private TupleTag<Double> queryPerIntervalTag;
         private TupleTag<Double> queryDevTag;
-        // private TupleTag<Double> checkRatioTag;
-        // private TupleTag<Double> quotaRatioTag;
-        // private TupleTag<Double> statusRatioTag;
+        // private TupleTag<Double> checkErrorRatioTag;
+        // private TupleTag<Double> quotaErrorRatioTag;
+        // private TupleTag<Double> statusErrorRatioTag;
 
         public ConsumerFieldStatTableRowFn(TupleTag<Double> querySumTag, 
                                             TupleTag<Double> queryPerIntervalTag, TupleTag<Double> queryDevTag) {
@@ -730,19 +730,19 @@ public class LogAnalyticsPipeline {
      * writeTimestampServiceFieldListsToBigQuery is a custom function that outputs Map<String, PCollection<KV<String, Double>>> as timestamp-service-field-lists to BigQuery
      */
     protected static boolean writeTimestampServiceFieldListsToBigQuery(Map<String, PCollection<KV<String, Double>>> timestampServiceFieldLists, String bqTempLocation, String tableName, String tableSchema) {
-        final TupleTag<Double> queryTag  = new TupleTag<Double>();
-        final TupleTag<Double> checkTag  = new TupleTag<Double>();
-        final TupleTag<Double> quotaTag  = new TupleTag<Double>();
-        final TupleTag<Double> statusTag = new TupleTag<Double>();
+        final TupleTag<Double> queryTag       = new TupleTag<Double>();
+        final TupleTag<Double> checkErrorTag  = new TupleTag<Double>();
+        final TupleTag<Double> quotaErrorTag  = new TupleTag<Double>();
+        final TupleTag<Double> stautsErrorTag = new TupleTag<Double>();
         
         PCollection<KV<String, CoGbkResult>> joined = KeyedPCollectionTuple
-            .of(queryTag,   timestampServiceFieldLists.get("query"))
-            .and(checkTag,  timestampServiceFieldLists.get("check"))
-            .and(quotaTag,  timestampServiceFieldLists.get("quota"))
-            .and(statusTag, timestampServiceFieldLists.get("status"))
+            .of(queryTag,        timestampServiceFieldLists.get("query"))
+            .and(checkErrorTag,  timestampServiceFieldLists.get("check"))
+            .and(quotaErrorTag,  timestampServiceFieldLists.get("quota"))
+            .and(stautsErrorTag, timestampServiceFieldLists.get("status"))
             .apply("TimestampServiceFieldListsCGBK", CoGroupByKey.<String>create());
 
-        joined.apply("", ParDo.of(new TimestampServiceFieldListTableRowFn(queryTag, checkTag, quotaTag, statusTag)))
+        joined.apply("", ParDo.of(new TimestampServiceFieldListTableRowFn(queryTag, checkErrorTag, quotaErrorTag, stautsErrorTag)))
             .apply("ToBigQuery", BigQueryIO.writeTableRows()
                 .to(tableName)
                 .withSchema(TableRowOutputTransform.createTableSchema(tableSchema))
@@ -758,29 +758,29 @@ public class LogAnalyticsPipeline {
      * writeServiceFieldStatsToBigQuery is a custom function that outputs Map<String, PCollection<KV<String, Double>>> as service-field-stats to BigQuery
      */
     protected static boolean writeServiceFieldStatsToBigQuery(Map<String, PCollection<KV<String, Double>>> serviceFieldStats, String bqTempLocation, String tableName, String tableSchema) {
-        final TupleTag<Double> querySumTag          = new TupleTag<Double>();
-        final TupleTag<Double> checkSumTag          = new TupleTag<Double>();
-        final TupleTag<Double> quotaSumTag          = new TupleTag<Double>();
-        final TupleTag<Double> statusSumTag         = new TupleTag<Double>();
-        final TupleTag<Double> queryPerIntervalTag  = new TupleTag<Double>();
-        final TupleTag<Double> queryDevTag          = new TupleTag<Double>();
-        final TupleTag<Double> checkRatioTag        = new TupleTag<Double>();
-        final TupleTag<Double> quotaRatioTag        = new TupleTag<Double>();
-        final TupleTag<Double> statusRatioTag       = new TupleTag<Double>();
+        final TupleTag<Double> querySumTag               = new TupleTag<Double>();
+        final TupleTag<Double> checkErrorSumTag          = new TupleTag<Double>();
+        final TupleTag<Double> quotaErrorSumTag          = new TupleTag<Double>();
+        final TupleTag<Double> statusErrorSumTag         = new TupleTag<Double>();
+        final TupleTag<Double> queryPerIntervalTag       = new TupleTag<Double>();
+        final TupleTag<Double> queryDevTag               = new TupleTag<Double>();
+        final TupleTag<Double> checkErrorRatioTag        = new TupleTag<Double>();
+        final TupleTag<Double> quotaErrorRatioTag        = new TupleTag<Double>();
+        final TupleTag<Double> statusErrorRatioTag       = new TupleTag<Double>();
 
         PCollection<KV<String, CoGbkResult>> joined = KeyedPCollectionTuple
-            .of(querySumTag,          serviceFieldStats.get("querySum"))
-            .and(checkSumTag,         serviceFieldStats.get("checkSum"))
-            .and(quotaSumTag,         serviceFieldStats.get("quotaSum"))
-            .and(statusSumTag,        serviceFieldStats.get("statusSum"))
-            .and(queryPerIntervalTag, serviceFieldStats.get("queryPerInterval"))
-            .and(queryDevTag,         serviceFieldStats.get("queryDev"))
-            .and(checkRatioTag,       serviceFieldStats.get("checkRatio"))
-            .and(quotaRatioTag,       serviceFieldStats.get("quotaRatio"))
-            .and(statusRatioTag,      serviceFieldStats.get("statusRatio"))
+            .of(querySumTag,               serviceFieldStats.get("querySum"))
+            .and(checkErrorSumTag,         serviceFieldStats.get("checkErrorSum"))
+            .and(quotaErrorSumTag,         serviceFieldStats.get("quotaErrorSum"))
+            .and(statusErrorSumTag,        serviceFieldStats.get("statusErrorSum"))
+            .and(queryPerIntervalTag,      serviceFieldStats.get("queryPerInterval"))
+            .and(queryDevTag,              serviceFieldStats.get("queryDev"))
+            .and(checkErrorRatioTag,       serviceFieldStats.get("checkErrorRatio"))
+            .and(quotaErrorRatioTag,       serviceFieldStats.get("quotaErrorRatio"))
+            .and(statusErrorRatioTag,      serviceFieldStats.get("statusErrorRatio"))
             .apply("ServiceFieldStatsCGBK", CoGroupByKey.<String>create());
 
-        joined.apply("", ParDo.of(new ServiceFieldStatTableRowFn(querySumTag, checkSumTag, quotaSumTag, statusSumTag, queryPerIntervalTag, queryDevTag, checkRatioTag, quotaRatioTag, statusRatioTag)))
+        joined.apply("", ParDo.of(new ServiceFieldStatTableRowFn(querySumTag, checkErrorSumTag, quotaErrorSumTag, statusErrorSumTag, queryPerIntervalTag, queryDevTag, checkErrorRatioTag, quotaErrorRatioTag, statusErrorRatioTag)))
             .apply("ToBigQuery", BigQueryIO.writeTableRows()
                 .to(tableName)
                 .withSchema(TableRowOutputTransform.createTableSchema(tableSchema))
@@ -796,15 +796,15 @@ public class LogAnalyticsPipeline {
      * writeConsumerFieldStatsToBigQuery is a custom function that outputs Map<String, PCollection<KV<String, Double>>> as consumer-field-stats to BigQuery
      */
     protected static boolean writeConsumerFieldStatsToBigQuery(Map<String, PCollection<KV<String, Double>>> stats, String bqTempLocation, String tableName, String tableSchema) {
-        final TupleTag<Double> querySumTag          = new TupleTag<Double>();
-        // final TupleTag<Double> checkSumTag       = new TupleTag<Double>();
-        // final TupleTag<Double> quotaSumTag       = new TupleTag<Double>();
-        // final TupleTag<Double> statusSumTag      = new TupleTag<Double>();
-        final TupleTag<Double> queryPerIntervalTag  = new TupleTag<Double>();
-        final TupleTag<Double> queryDevTag          = new TupleTag<Double>();
-        // final TupleTag<Double> checkRatioTag     = new TupleTag<Double>();
-        // final TupleTag<Double> quotaRatioTag     = new TupleTag<Double>();
-        // final TupleTag<Double> statusRatioTag    = new TupleTag<Double>();
+        final TupleTag<Double> querySumTag               = new TupleTag<Double>();
+        // final TupleTag<Double> checkErrorSumTag       = new TupleTag<Double>();
+        // final TupleTag<Double> quotaErrorSumTag       = new TupleTag<Double>();
+        // final TupleTag<Double> statusErrorSumTag      = new TupleTag<Double>();
+        final TupleTag<Double> queryPerIntervalTag       = new TupleTag<Double>();
+        final TupleTag<Double> queryDevTag               = new TupleTag<Double>();
+        // final TupleTag<Double> checkErrorRatioTag     = new TupleTag<Double>();
+        // final TupleTag<Double> quotaErrorRatioTag     = new TupleTag<Double>();
+        // final TupleTag<Double> statusErrorRatioTag    = new TupleTag<Double>();
 
         PCollection<KV<String, CoGbkResult>> joined = KeyedPCollectionTuple
             .of(querySumTag,          stats.get("querySum"))
@@ -870,9 +870,9 @@ public class LogAnalyticsPipeline {
 
         PCollection<KV<String, Double>> entityFieldDev = getDeviation(entityFieldMinMaxSum);
 
-        PCollection<KV<String, Double>> serviceCheckRatio  = getRatio(entityFieldSum, "service_", "check_");
-        PCollection<KV<String, Double>> serviceQuotaRatio  = getRatio(entityFieldSum, "service_", "quota_");
-        PCollection<KV<String, Double>> serviceStatusRatio = getRatio(entityFieldSum, "service_", "status");
+        PCollection<KV<String, Double>> servicecheckErrorRatio  = getRatio(entityFieldSum, "service_", "check_");
+        PCollection<KV<String, Double>> servicequotaErrorRatio  = getRatio(entityFieldSum, "service_", "quota_");
+        PCollection<KV<String, Double>> servicestatusErrorRatio = getRatio(entityFieldSum, "service_", "status");
 
     
         /* (5) Store to BigQuery */
@@ -896,14 +896,14 @@ public class LogAnalyticsPipeline {
 
         Map<String, PCollection<KV<String, Double>>> serviceFieldStats = new HashMap<String, PCollection<KV<String, Double>>>();
         serviceFieldStats.put("querySum",         doFilterAndRemoveKeyPrefix(entityFieldSum,        "service_-query_-"));
-        serviceFieldStats.put("checkSum",         doFilterAndRemoveKeyPrefix(entityFieldSum,        "service_-check_-"));
-        serviceFieldStats.put("quotaSum",         doFilterAndRemoveKeyPrefix(entityFieldSum,        "service_-quota_-"));
-        serviceFieldStats.put("statusSum",        doFilterAndRemoveKeyPrefix(entityFieldSum,        "service_-status-"));
+        serviceFieldStats.put("checkErrorSum",         doFilterAndRemoveKeyPrefix(entityFieldSum,        "service_-check_-"));
+        serviceFieldStats.put("quotaErrorSum",         doFilterAndRemoveKeyPrefix(entityFieldSum,        "service_-quota_-"));
+        serviceFieldStats.put("statusErrorSum",        doFilterAndRemoveKeyPrefix(entityFieldSum,        "service_-status-"));
         serviceFieldStats.put("queryPerInterval", doFilterAndRemoveKeyPrefix(entityFieldPerInteval, "service_-query_-"));
         serviceFieldStats.put("queryDev",         doFilterAndRemoveKeyPrefix(entityFieldDev,        "service_-query_-"));
-        serviceFieldStats.put("checkRatio",       serviceCheckRatio);
-        serviceFieldStats.put("quotaRatio",       serviceQuotaRatio);
-        serviceFieldStats.put("statusRatio",      serviceStatusRatio);
+        serviceFieldStats.put("checkErrorRatio",       servicecheckErrorRatio);
+        serviceFieldStats.put("quotaErrorRatio",       servicequotaErrorRatio);
+        serviceFieldStats.put("statusErrorRatio",      servicestatusErrorRatio);
         writeServiceFieldStatsToBigQuery(serviceFieldStats, 
                                             bqTempLocation,
                                             options.getServiceFieldStatsTableName(), 
