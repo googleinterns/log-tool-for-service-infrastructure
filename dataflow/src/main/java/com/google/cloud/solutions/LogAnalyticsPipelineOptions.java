@@ -62,6 +62,16 @@ public interface LogAnalyticsPipelineOptions extends PipelineOptions {
     @Default.String("seconds:STRING,entityType:STRING,entityName:STRING,fieldName:String,fieldValue:STRING")
     String getTimestampEntityFieldTableSchema();
     void setTimestampEntityFieldTableSchema(String timestampEntityFieldTableSchema);
+    
+    @Description("BigQuery table name for timestamp_service_field_list table")
+    @Default.String("dataflow_log_analytics.timestamp_service_field_list_table")
+    String getTimestampServiceFieldListTableName();
+    void setTimestampServiceFieldListTableName(String timestampServiceFieldListTableName);
+
+    @Description("BigQuery table schema for timestamp_service_field_list table, comma-separated values of [field-name]:[TYPE]")
+    @Default.String("seconds:STRING,service:STRING,query:String,checkError:STRING,quotaError:String,statusError:STRING")
+    String getTimestampServiceFieldListTableSchema();
+    void setTimestampServiceFieldListTableSchema(String timestampServiceFieldListTableSchema);
 
     @Description("BigQuery table name for service_field_stats table")
     @Default.String("dataflow_log_analytics.service_field_stats_table")
@@ -69,7 +79,7 @@ public interface LogAnalyticsPipelineOptions extends PipelineOptions {
     void setServiceFieldStatsTableName(String serviceFieldStatsTableName);
 
     @Description("BigQuery table schema for service_field_stats table, comma-separated values of [field-name]:[TYPE]")
-    @Default.String("service:STRING,querySum:STRING,checkSum:STRING,quotaSum:STRING,statusSum:STRING,queryPerInterval:STRING,queryDev:STRING,checkRatio:STRING,quotaRatio:STRING,statusRatio:STRING")
+    @Default.String("service:STRING,querySum:STRING,checkErrorSum:STRING,quotaErrorSum:STRING,statusErrorSum:STRING,queryPerInterval:STRING,queryDev:STRING,checkErrorRatio:STRING,quotaErrorRatio:STRING,statusErrorRatio:STRING")
     String getServiceFieldStatsTableSchema();
     void setServiceFieldStatsTableSchema(String serviceFieldStatsTableSchema);
 
