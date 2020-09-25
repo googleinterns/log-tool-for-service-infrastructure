@@ -17,4 +17,4 @@ The specific tasks are as follows:
 This tool will be running against logs extracted from non-prod environment with all PII field masked.   
 
 The high-level workflow of this project is 
-![high-level flowchart](https://github.com/googleinterns/log-tool-for-service-infrastructure/blob/master/docs/images/High-level-flowchart.jpg?raw=true)
+![high-level flowchart](https://github.com/googleinterns/log-tool-for-service-infrastructure/blob/master/docs/images/High-level-flowchart.png?raw=true)
