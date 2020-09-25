@@ -14,4 +14,7 @@ The specific tasks are as follows:
 2) Detect patterns to define the normal service behavior.
 3) Detect anomalies so that we can notice abnormal behaviors.
 
-This tool will be running against logs extracted from non-prod environment with all PII field masked.
+This tool will be running against logs extracted from non-prod environment with all PII field masked.   
+
+The high-level workflow of this project is 
+![high-level flowchart](https://github.com/googleinterns/log-tool-for-service-infrastructure/blob/master/docs/images/High-level-flowchart.jpg?raw=true)
