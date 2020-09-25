@@ -13,6 +13,7 @@
 // limitations under the License.
 
 // reference: https://github.com/GoogleCloudPlatform/processing-logs-using-dataflow
+// TODO: Due to time limitation, this file is not complete, and can only be used as a reference.
 
 package com.google.cloud.solutions;
 
