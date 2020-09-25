@@ -73,7 +73,6 @@ import org.apache.beam.sdk.transforms.join.CoGroupByKey;
 import org.apache.beam.sdk.transforms.join.CoGbkResult;
 import org.apache.beam.sdk.transforms.join.KeyedPCollectionTuple;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO.Write.WriteDisposition;
-import org.apache.beam.sdk.testing.PAssert;
 import org.joda.time.DateTimeZone;
 import org.joda.time.DateTime;
 
@@ -83,20 +82,22 @@ import java.time.ZoneId;
 import java.util.Map;
 import java.util.HashMap;
 import java.lang.StackTraceElement;
+import java.util.Random;
 
 
 
 // https://github.com/GoogleCloudPlatform/processing-logs-using-dataflow
 public class LogAnalyticsPipeline {
 
-    private static final Logger LOG = LoggerFactory.getLogger(LogAnalyticsPipeline.class);
+    protected static final Logger LOG = LoggerFactory.getLogger(LogAnalyticsPipeline.class);
+    protected static Random rand = new Random(); 
 
     /**
      * ParseStringToProtobufFn is a custom DoFn that parses a ProtoBuf string
      * The input format can be either JSON or text
      * The output is an instance of ServiceControlLogEntry defined in ServiceExtensionProtos.java
      */
-    private static class ParseStringToProtobufFn extends DoFn<String, ServiceControlLogEntry> {
+    protected static class ParseStringToProtobufFn extends DoFn<String, ServiceControlLogEntry> {
         private String format; 
 
         public ParseStringToProtobufFn(String format) {
@@ -153,7 +154,7 @@ public class LogAnalyticsPipeline {
      * EmitLogMessageFn is a custom DoFn that transforms ServiceControlLogEntry to LogMessage
      * time_usec (as timestamp) is extracted from ServiceControlLogEntry and becomes a filed of LogMessage
      */
-    private static class EmitLogMessageFn extends DoFn<ServiceControlLogEntry, LogMessage> {
+    protected static class EmitLogMessageFn extends DoFn<ServiceControlLogEntry, LogMessage> {
         // private boolean outputWithTimestamp;
 
         public EmitLogMessageFn(boolean outputWithTimestamp) {
@@ -188,27 +189,27 @@ public class LogAnalyticsPipeline {
      * PrintKVStringDoubleFn is a custom DoFn that prints the contents of KV<String, Double> in PCollection
      * It can be used for debug
      */
-    private static class PrintKVStringDoubleFn extends DoFn<KV<String, Double>, KV<String, Double>> {
-        private String heading;
+    // protected static class PrintKVStringDoubleFn extends DoFn<KV<String, Double>, KV<String, Double>> {
+    //     private String heading;
 
-        public PrintKVStringDoubleFn(String heading) {
-            this.heading = heading;
-        }
+    //     public PrintKVStringDoubleFn(String heading) {
+    //         this.heading = heading;
+    //     }
 
-        @ProcessElement
-        public void processElement(ProcessContext c) throws Exception {
-            KV<String, Double> kv = c.element();
-            System.out.println(heading + ": " + kv.toString());
-            LOG.info(heading + ": " + kv.toString());
-            c.output(kv);
-        }
-    }
+    //     @ProcessElement
+    //     public void processElement(ProcessContext c) throws Exception {
+    //         KV<String, Double> kv = c.element();
+    //         System.out.println(heading + ": " + kv.toString());
+    //         LOG.info(heading + ": " + kv.toString());
+    //         c.output(kv);
+    //     }
+    // }
 
     /**
      * RemoveKeyPrefixFn is a custom DoFn that removes the given prefix for a string as the key in a KV<String, Double>
      * It can be used for unifying keys of PColeection<KV<String, Double>> for different fields of a same entity
      */
-    private static class RemoveKeyPrefixFn extends DoFn<KV<String, Double>, KV<String, Double>> {
+    protected static class RemoveKeyPrefixFn extends DoFn<KV<String, Double>, KV<String, Double>> {
         private String prefix;
 
         public RemoveKeyPrefixFn(String prefix) {
@@ -235,7 +236,7 @@ public class LogAnalyticsPipeline {
      * And it is not necessarily the same to its own epoch seconds
      * Note that it can be confusing that "timestamp" actually refers to "time interval"
      */
-    private static class TimestampAndEntityKeyedFieldValueFn extends DoFn<LogMessage, KV<String, Double>> {
+    protected static class TimestampAndEntityKeyedFieldValueFn extends DoFn<LogMessage, KV<String, Double>> {
         private long interval;
 
         public TimestampAndEntityKeyedFieldValueFn(long interval) {
@@ -271,7 +272,7 @@ public class LogAnalyticsPipeline {
      * EntityKeyedFieldValueFn is a custom DoFn that removes timestamp from a key string of KV<String, Double>
      * e.g., "${entityType}-${fieldName}-${timestamp}-${entityName}" becomes "${entityType}-${fieldName}-${entityName}"
      */
-    private static class EntityKeyedFieldValueFn extends DoFn<KV<String, Double>, KV<String, Double>> {
+    protected static class EntityKeyedFieldValueFn extends DoFn<KV<String, Double>, KV<String, Double>> {
         @ProcessElement
         public void processElement(ProcessContext c) throws Exception {
             KV<String, Double> kv = c.element();
@@ -293,7 +294,7 @@ public class LogAnalyticsPipeline {
      * CalculateMeanPerIntervalFn is a custom DoFn that calculates mean per interval of a field for an entity
      * e.g., query per second for a service
      */
-    private static class CalculateMeanPerIntervalFn extends DoFn<KV<String, Double>, KV<String, Double>> {
+    protected static class CalculateMeanPerIntervalFn extends DoFn<KV<String, Double>, KV<String, Double>> {
         private long timeIntervalCount;
 
         public CalculateMeanPerIntervalFn(long timeIntervalCount) {
@@ -313,7 +314,7 @@ public class LogAnalyticsPipeline {
      * CalculateDeviationFn is a custom DoFn that calculates deviation of a field for an entity
      * (maximum count among all intervals - minimum count among all intervals) / all count among all intervals
      */
-    private static class CalculateDeviationFn extends DoFn<KV<String, CoGbkResult>, KV<String, Double>> {
+    protected static class CalculateDeviationFn extends DoFn<KV<String, CoGbkResult>, KV<String, Double>> {
         private TupleTag<Double> minTag;
         private TupleTag<Double> maxTag;
         private TupleTag<Double> sumTag;
@@ -344,7 +345,7 @@ public class LogAnalyticsPipeline {
      * CalculateRatioFn is a custom DoFn that calculates the ratio of the total count of a field to that of queries for an entity
      * all field count among all intervals / all queries among all intervals
      */
-    private static class CalculateRatioFn extends DoFn<KV<String, CoGbkResult>, KV<String, Double>> {
+    protected static class CalculateRatioFn extends DoFn<KV<String, CoGbkResult>, KV<String, Double>> {
         private TupleTag<Double> querySumTag;
         private TupleTag<Double> fieldSumTag;
 
@@ -373,7 +374,7 @@ public class LogAnalyticsPipeline {
      * The format of a key string: ${entityType}-${fieldName}-${timestamp}-${entityName}"
      * The value is a Double of field value
      */
-    private static class TimestampEntityFieldTableRowFn extends DoFn<KV<String, Double>, TableRow> {
+    protected static class TimestampEntityFieldTableRowFn extends DoFn<KV<String, Double>, TableRow> {
         @ProcessElement
         public void processElement(ProcessContext c) {
             KV<String, Double> kv = c.element();
@@ -400,7 +401,7 @@ public class LogAnalyticsPipeline {
      * The key string is the name of a service
      * The value, as a result of CoGroupByKey operations, contains multiple tagged field list (e.g., check error count, not-OK status count) for the keyed service 
      */
-    private static class TimestampServiceFieldListTableRowFn extends DoFn<KV<String, CoGbkResult>, TableRow> {
+    protected static class TimestampServiceFieldListTableRowFn extends DoFn<KV<String, CoGbkResult>, TableRow> {
         private TupleTag<Double> queryTag;
         private TupleTag<Double> checkTag;
         private TupleTag<Double> quotaTag;
@@ -443,7 +444,7 @@ public class LogAnalyticsPipeline {
      * The key string is the name of a service
      * The value, as a result of CoGroupByKey operations, contains multiple tagged field stats (e.g., min check errors, ratio of not-OK status) for the keyed service 
      */
-    private static class ServiceFieldStatTableRowFn extends DoFn<KV<String, CoGbkResult>, TableRow> {
+    protected static class ServiceFieldStatTableRowFn extends DoFn<KV<String, CoGbkResult>, TableRow> {
         private TupleTag<Double> querySumTag;
         private TupleTag<Double> checkSumTag;
         private TupleTag<Double> quotaSumTag;
@@ -503,7 +504,7 @@ public class LogAnalyticsPipeline {
      * The key string is the name of a consumer
      * The value, as a result of CoGroupByKey operations, contains multiple tagged field (so far query only) stats for the keyed consumer 
      */
-    private static class ConsumerFieldStatTableRowFn extends DoFn<KV<String, CoGbkResult>, TableRow> {
+    protected static class ConsumerFieldStatTableRowFn extends DoFn<KV<String, CoGbkResult>, TableRow> {
         private TupleTag<Double> querySumTag;
         // private TupleTag<Double> checkSumTag;
         // private TupleTag<Double> quotaSumTag;
@@ -544,7 +545,7 @@ public class LogAnalyticsPipeline {
      * TableRowOutputTransform is a custom DoFn that outputs TableRow to BigQuery 
      * Accoding to given table name and table schema
      */
-    private static class TableRowOutputTransform extends PTransform<PCollection<KV<String,Double>>,PCollection<TableRow>> {
+    protected static class TableRowOutputTransform extends PTransform<PCollection<KV<String,Double>>,PCollection<TableRow>> {
         private String tableSchema;
         private String tableName;
 
@@ -595,11 +596,11 @@ public class LogAnalyticsPipeline {
      * - Transforms LogMessage to KV<String, Double> ("${entityType}-${fieldName}-${timestamp}-${entityName}", ${fieldValue})
      * - Sums up field values with same key (same time interval, same entity name, same field name)
      */
-    private static PCollection<KV<String, Double>> getTimestampEntityFieldsCombinedWithinEachInterval(PCollection<LogMessage> allLogMessages, long interval) {
+    protected static PCollection<KV<String, Double>> getTimestampEntityFieldsCombinedWithinEachInterval(PCollection<LogMessage> allLogMessages, long interval) {
         PCollection<KV<String, Double>> res = allLogMessages
-            .apply("", ParDo.of(new TimestampAndEntityKeyedFieldValueFn(interval)))
-            .apply(Combine.<String, Double, Double>perKey(Sum.ofDoubles())) // .apply(Sum.<String>doublesPerKey())
-            .apply("Print", ParDo.of(new PrintKVStringDoubleFn("TimestampEntityFields")));
+            .apply("ApplyInterval", ParDo.of(new TimestampAndEntityKeyedFieldValueFn(interval)))
+            .apply("CombineWithinInterval", Combine.<String, Double, Double>perKey(Sum.ofDoubles())) // .apply(Sum.<String>doublesPerKey())
+            ;//.apply("Print", ParDo.of(new PrintKVStringDoubleFn("TimestampEntityFields")));
         return res;
     }
 
@@ -609,15 +610,15 @@ public class LogAnalyticsPipeline {
      * - Removes the prefix of filtered key string
      * It can be used for unifying keys of PColeection<KV<String, Double>> for different fields of a same entity
      */
-    private static PCollection<KV<String, Double>> doFilterAndRemoveKeyPrefix(PCollection<KV<String, Double>> pc, String prefix) {
+    protected static PCollection<KV<String, Double>> doFilterAndRemoveKeyPrefix(PCollection<KV<String, Double>> pc, String prefix) {
         PCollection<KV<String, Double>> res = pc
-            .apply(Filter.by(new SerializableFunction<KV<String, Double>, Boolean>() {
+            .apply(prefix + "Filter" + Integer.toString(rand.nextInt(1024)), Filter.by(new SerializableFunction<KV<String, Double>, Boolean>() {
                 @Override
                 public Boolean apply(KV<String, Double> input) {
                     return input.getKey().startsWith(prefix);
                 }
             }))
-            .apply("", ParDo.of(new RemoveKeyPrefixFn(prefix)));
+            .apply(prefix + "Remove" + Integer.toString(rand.nextInt(1024)), ParDo.of(new RemoveKeyPrefixFn(prefix)));
         return res;
     }
 
@@ -628,21 +629,21 @@ public class LogAnalyticsPipeline {
      * - Gets sum: KV<String, Double> ("${entityType}-${fieldName}-${entityName}", ${totalFieldValueAmongAllTimeIntervals})
      * The results are put into a Map instance
      */
-    private static Map<String, PCollection<KV<String, Double>>> getMinMaxSum(PCollection<KV<String, Double>> timestampEntityFields) {
+    protected static Map<String, PCollection<KV<String, Double>>> getMinMaxSum(PCollection<KV<String, Double>> timestampEntityFields) {
         PCollection<KV<String, Double>> entityField = timestampEntityFields
-            .apply("", ParDo.of(new EntityKeyedFieldValueFn()));
+            .apply("GetEntityKeyedFieldValue", ParDo.of(new EntityKeyedFieldValueFn()));
 
         PCollection<KV<String, Double>> min = entityField
             .apply(Min.<String>doublesPerKey()) 
-            .apply("Print", ParDo.of(new PrintKVStringDoubleFn(" (Min)")));
+            ;//.apply("Print", ParDo.of(new PrintKVStringDoubleFn(" (Min)")));
 
         PCollection<KV<String, Double>> max = entityField
             .apply(Max.<String>doublesPerKey()) 
-            .apply("Print", ParDo.of(new PrintKVStringDoubleFn(" (Max)")));
+            ;//.apply("Print", ParDo.of(new PrintKVStringDoubleFn(" (Max)")));
 
         PCollection<KV<String, Double>> sum = entityField
-            .apply(Combine.<String, Double, Double>perKey(Sum.ofDoubles())) 
-            .apply("Print", ParDo.of(new PrintKVStringDoubleFn(" (Sum)")));
+            .apply("sum", Combine.<String, Double, Double>perKey(Sum.ofDoubles())) 
+            ;//.apply("Print", ParDo.of(new PrintKVStringDoubleFn(" (Sum)")));
 
         Map<String, PCollection<KV<String, Double>>> res = new HashMap<String, PCollection<KV<String, Double>>>();
         res.put("min", min);
@@ -655,10 +656,10 @@ public class LogAnalyticsPipeline {
      * getMeanPerInterval is a custom function that processes a PCollection of KV<String, Double> as entity-field-sum ("${entityType}-${fieldName}-${entityName}", ${totalFieldValueAmongAllTimeIntervals}):
      * Gets mean per interval: KV<String, Double> ("${entityType}-${fieldName}-${entityName}", ${meanFieldValuePerTimeInterval})
      */
-    private static PCollection<KV<String, Double>> getMeanPerInterval(PCollection<KV<String, Double>> entityFieldSum, long timeIntervalCount) {
+    protected static PCollection<KV<String, Double>> getMeanPerInterval(PCollection<KV<String, Double>> entityFieldSum, long timeIntervalCount) {
         PCollection<KV<String, Double>> res = entityFieldSum
-            .apply("", ParDo.of(new CalculateMeanPerIntervalFn(timeIntervalCount)))
-            .apply("Print", ParDo.of(new PrintKVStringDoubleFn(" (PerInterval)")));;
+            .apply("CalculateMeanPerInterval", ParDo.of(new CalculateMeanPerIntervalFn(timeIntervalCount)))
+            ;//.apply("Print", ParDo.of(new PrintKVStringDoubleFn(" (PerInterval)")));;
 
         return res;
     }
@@ -668,7 +669,7 @@ public class LogAnalyticsPipeline {
      * Gets deviation: KV<String, Double> ("${entityType}-${fieldName}-${entityName}", ${deviationFieldValueAmongAllTimeIntervals})
      * The way to calculate deviation is given in CalculateDeviationFn
      */
-    private static PCollection<KV<String, Double>> getDeviation(Map<String, PCollection<KV<String, Double>>> entityFieldMinMaxSum) {
+    protected static PCollection<KV<String, Double>> getDeviation(Map<String, PCollection<KV<String, Double>>> entityFieldMinMaxSum) {
         final TupleTag<Double> minTag = new TupleTag<Double>();
         final TupleTag<Double> maxTag = new TupleTag<Double>();
         final TupleTag<Double> sumTag = new TupleTag<Double>();
@@ -677,11 +678,11 @@ public class LogAnalyticsPipeline {
             .of(minTag,  entityFieldMinMaxSum.get("min"))
             .and(maxTag, entityFieldMinMaxSum.get("max"))
             .and(sumTag, entityFieldMinMaxSum.get("sum"))
-            .apply(CoGroupByKey.<String>create());
+            .apply("DevCGBK", CoGroupByKey.<String>create());
 
         PCollection<KV<String, Double>> res = joined
-            .apply("", ParDo.of(new CalculateDeviationFn(minTag, maxTag, sumTag)))
-            .apply("Print", ParDo.of(new PrintKVStringDoubleFn(" (Dev)")));
+            .apply("CalculateDeviation", ParDo.of(new CalculateDeviationFn(minTag, maxTag, sumTag)))
+            ;//.apply("Print", ParDo.of(new PrintKVStringDoubleFn(" (Dev)")));
 
         return res;
     }
@@ -690,7 +691,7 @@ public class LogAnalyticsPipeline {
      * getRatio is a custom function that processes a of PCollection of KV<String, Double> as entity-field-stats (field: query/other, stats: sum)
      * Gets ratio: KV<String, Double> ("${entityType}-${fieldName}-${entityName}", ${FieldValueOverQueriesAmongAllTimeIntervals})
      */
-    private static PCollection<KV<String, Double>> getRatio(PCollection<KV<String, Double>> entityFieldSum, String entityType, String fieldName) {
+    protected static PCollection<KV<String, Double>> getRatio(PCollection<KV<String, Double>> entityFieldSum, String entityType, String fieldName) {
         // filter and rename key first
         PCollection<KV<String, Double>> specificEntityQuerySum = doFilterAndRemoveKeyPrefix(entityFieldSum, entityType + "-" + "query_"  + "-");
         PCollection<KV<String, Double>> specificEntityFieldSum = doFilterAndRemoveKeyPrefix(entityFieldSum, entityType + "-" + fieldName + "-");
@@ -701,11 +702,11 @@ public class LogAnalyticsPipeline {
         PCollection<KV<String, CoGbkResult>> joined = KeyedPCollectionTuple
             .of(querySumTag,  specificEntityQuerySum)
             .and(fieldSumTag, specificEntityFieldSum)
-            .apply(CoGroupByKey.<String>create());
+            .apply(entityType + fieldName + "RatioCGBK", CoGroupByKey.<String>create());
 
         PCollection<KV<String, Double>> res = joined
-            .apply("", ParDo.of(new CalculateRatioFn(querySumTag, fieldSumTag)))
-            .apply("Print", ParDo.of(new PrintKVStringDoubleFn(" (Ratio)")));
+            .apply("CalculateRatio" + Integer.toString(rand.nextInt(1024)), ParDo.of(new CalculateRatioFn(querySumTag, fieldSumTag)))
+            ;//.apply("Print", ParDo.of(new PrintKVStringDoubleFn(" (Ratio)")));
 
         return res;
     }
@@ -713,7 +714,7 @@ public class LogAnalyticsPipeline {
     /**
      * writeTimestampEntityFieldToBigQuery is a custom function that outputs PCollection<KV<String, Double>> as timestamp-entity-field to BigQuery
      */
-    private static boolean writeTimestampEntityFieldToBigQuery(PCollection<KV<String, Double>> timestampEntityFields, String bqTempLocation, String tableName, String tableSchema, BigQueryIO.Write.WriteDisposition writeDisposition) {
+    protected static boolean writeTimestampEntityFieldToBigQuery(PCollection<KV<String, Double>> timestampEntityFields, String bqTempLocation, String tableName, String tableSchema, BigQueryIO.Write.WriteDisposition writeDisposition) {
         timestampEntityFields.apply("", ParDo.of(new TimestampEntityFieldTableRowFn()))
             .apply("ToBigQuery", BigQueryIO.writeTableRows()
                 .to(tableName)
@@ -728,7 +729,7 @@ public class LogAnalyticsPipeline {
     /**
      * writeTimestampServiceFieldListsToBigQuery is a custom function that outputs Map<String, PCollection<KV<String, Double>>> as timestamp-service-field-lists to BigQuery
      */
-    private static boolean writeTimestampServiceFieldListsToBigQuery(Map<String, PCollection<KV<String, Double>>> timestampServiceFieldLists, String bqTempLocation, String tableName, String tableSchema) {
+    protected static boolean writeTimestampServiceFieldListsToBigQuery(Map<String, PCollection<KV<String, Double>>> timestampServiceFieldLists, String bqTempLocation, String tableName, String tableSchema) {
         final TupleTag<Double> queryTag  = new TupleTag<Double>();
         final TupleTag<Double> checkTag  = new TupleTag<Double>();
         final TupleTag<Double> quotaTag  = new TupleTag<Double>();
@@ -739,7 +740,7 @@ public class LogAnalyticsPipeline {
             .and(checkTag,  timestampServiceFieldLists.get("check"))
             .and(quotaTag,  timestampServiceFieldLists.get("quota"))
             .and(statusTag, timestampServiceFieldLists.get("status"))
-            .apply(CoGroupByKey.<String>create());
+            .apply("TimestampServiceFieldListsCGBK", CoGroupByKey.<String>create());
 
         joined.apply("", ParDo.of(new TimestampServiceFieldListTableRowFn(queryTag, checkTag, quotaTag, statusTag)))
             .apply("ToBigQuery", BigQueryIO.writeTableRows()
@@ -756,7 +757,7 @@ public class LogAnalyticsPipeline {
     /**
      * writeServiceFieldStatsToBigQuery is a custom function that outputs Map<String, PCollection<KV<String, Double>>> as service-field-stats to BigQuery
      */
-    private static boolean writeServiceFieldStatsToBigQuery(Map<String, PCollection<KV<String, Double>>> serviceFieldStats, String bqTempLocation, String tableName, String tableSchema) {
+    protected static boolean writeServiceFieldStatsToBigQuery(Map<String, PCollection<KV<String, Double>>> serviceFieldStats, String bqTempLocation, String tableName, String tableSchema) {
         final TupleTag<Double> querySumTag          = new TupleTag<Double>();
         final TupleTag<Double> checkSumTag          = new TupleTag<Double>();
         final TupleTag<Double> quotaSumTag          = new TupleTag<Double>();
@@ -777,7 +778,7 @@ public class LogAnalyticsPipeline {
             .and(checkRatioTag,       serviceFieldStats.get("checkRatio"))
             .and(quotaRatioTag,       serviceFieldStats.get("quotaRatio"))
             .and(statusRatioTag,      serviceFieldStats.get("statusRatio"))
-            .apply(CoGroupByKey.<String>create());
+            .apply("ServiceFieldStatsCGBK", CoGroupByKey.<String>create());
 
         joined.apply("", ParDo.of(new ServiceFieldStatTableRowFn(querySumTag, checkSumTag, quotaSumTag, statusSumTag, queryPerIntervalTag, queryDevTag, checkRatioTag, quotaRatioTag, statusRatioTag)))
             .apply("ToBigQuery", BigQueryIO.writeTableRows()
@@ -794,7 +795,7 @@ public class LogAnalyticsPipeline {
     /**
      * writeConsumerFieldStatsToBigQuery is a custom function that outputs Map<String, PCollection<KV<String, Double>>> as consumer-field-stats to BigQuery
      */
-    private static boolean writeConsumerFieldStatsToBigQuery(Map<String, PCollection<KV<String, Double>>> stats, String bqTempLocation, String tableName, String tableSchema) {
+    protected static boolean writeConsumerFieldStatsToBigQuery(Map<String, PCollection<KV<String, Double>>> stats, String bqTempLocation, String tableName, String tableSchema) {
         final TupleTag<Double> querySumTag          = new TupleTag<Double>();
         // final TupleTag<Double> checkSumTag       = new TupleTag<Double>();
         // final TupleTag<Double> quotaSumTag       = new TupleTag<Double>();
@@ -809,7 +810,7 @@ public class LogAnalyticsPipeline {
             .of(querySumTag,          stats.get("querySum"))
             .and(queryPerIntervalTag, stats.get("queryPerInterval"))
             .and(queryDevTag,         stats.get("queryDev"))
-            .apply(CoGroupByKey.<String>create());
+            .apply("ComsumerFieldStatsCGBK", CoGroupByKey.<String>create());
 
         joined.apply("", ParDo.of(new ConsumerFieldStatTableRowFn(querySumTag, queryPerIntervalTag, queryDevTag)))
             .apply("ToBigQuery", BigQueryIO.writeTableRows()
@@ -837,14 +838,6 @@ public class LogAnalyticsPipeline {
         long timeIntervalCount = options.getTimeIntervalCount();
         String entityType = options.getEntityType();
         String fieldName = options.getFieldName();
-
-        /* TODO: Test with PAssert */
-        // String runtimeMode = options.getRuntimeMode(); //
-        // if (runtimeMode.equals("TEST")) {
-        //     filepattern = "gs://alchemy-logdata/input/Sample_log_*";
-        //     timeInterval = 1;
-        //     timeIntervalCount = 10;
-        // }
 
         System.out.println("[0] Create a pipeline...\n");
         Pipeline p = Pipeline.create(options);
@@ -881,98 +874,7 @@ public class LogAnalyticsPipeline {
         PCollection<KV<String, Double>> serviceQuotaRatio  = getRatio(entityFieldSum, "service_", "quota_");
         PCollection<KV<String, Double>> serviceStatusRatio = getRatio(entityFieldSum, "service_", "status");
 
-        /* TODO: Test with PAssert */
-        // if (runtimeMode.equals("TEST")) {
-        //     // static final List<KV<String, Double>> KV_ARRAY = new ArrayList<KV<String, Double>>();
-        //     List<KV<String, Double>> KV_ARRAY = new ArrayList<KV<String, Double>>();
-        //     KV_ARRAY.add(KV.of("service_-query_-1593416510-staging-pubsub.sandbox.googleapis.com", 3.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-1593416511-staging-pubsub.sandbox.googleapis.com", 2.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-1593416512-staging-pubsub.sandbox.googleapis.com", 4.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-1593416513-staging-pubsub.sandbox.googleapis.com", 13.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-1593416514-staging-pubsub.sandbox.googleapis.com", 4.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-1593416515-staging-pubsub.sandbox.googleapis.com", 4.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-1593416516-staging-pubsub.sandbox.googleapis.com", 4.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-1593416517-staging-pubsub.sandbox.googleapis.com", 3.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-1593416518-staging-pubsub.sandbox.googleapis.com", 4.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-1593416519-staging-pubsub.sandbox.googleapis.com", 3.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-1593416510-staging-storage.sandbox.googleapis.com", 2.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-1593416511-staging-storage.sandbox.googleapis.com", 3.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-1593416512-staging-storage.sandbox.googleapis.com", 3.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-1593416513-staging-storage.sandbox.googleapis.com", 31.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-1593416514-staging-storage.sandbox.googleapis.com", 1.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-1593416515-staging-storage.sandbox.googleapis.com", 3.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-1593416516-staging-storage.sandbox.googleapis.com", 2.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-1593416517-staging-storage.sandbox.googleapis.com", 4.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-1593416518-staging-storage.sandbox.googleapis.com", 4.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-1593416519-staging-storage.sandbox.googleapis.com", 3.0));
-        //     KV_ARRAY.add(KV.of("service_-status-1593416513-staging-pubsub.sandbox.googleapis.com", 2.0));
-        //     KV_ARRAY.add(KV.of("service_-status-1593416514-staging-pubsub.sandbox.googleapis.com", 1.0));
-        //     KV_ARRAY.add(KV.of("service_-status-1593416515-staging-pubsub.sandbox.googleapis.com", 1.0));
-        //     KV_ARRAY.add(KV.of("service_-check_-1593416513-staging-pubsub.sandbox.googleapis.com", 3.0));
-        //     KV_ARRAY.add(KV.of("service_-check_-1593416514-staging-pubsub.sandbox.googleapis.com", 2.0));
-        //     KV_ARRAY.add(KV.of("service_-check_-1593416515-staging-pubsub.sandbox.googleapis.com", 3.0));
-        //     //
-        //     PAssert.that(timestampEntityFields).containsInAnyOrder(KV_ARRAY);
-
-        //     //
-        //     KV_ARRAY.clear();
-        //     KV_ARRAY.add(KV.of("service_-query_-staging-pubsub.sandbox.googleapis.com", 2.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-staging-storage.sandbox.googleapis.com", 1.0));
-        //     KV_ARRAY.add(KV.of("service_-status-staging-pubsub.sandbox.googleapis.com", 1.0));
-        //     KV_ARRAY.add(KV.of("service_-check_-staging-pubsub.sandbox.googleapis.com", 2.0));
-        //     //
-        //     PAssert.that(entityFieldMinMaxSum.get("min")).containsInAnyOrder(KV_ARRAY);
-
-        //     //
-        //     KV_ARRAY.clear();
-        //     KV_ARRAY.add(KV.of("service_-query_-staging-pubsub.sandbox.googleapis.com", 13.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-staging-storage.sandbox.googleapis.com", 31.0));
-        //     KV_ARRAY.add(KV.of("service_-status-staging-pubsub.sandbox.googleapis.com", 2.0));
-        //     KV_ARRAY.add(KV.of("service_-check_-staging-pubsub.sandbox.googleapis.com", 3.0));
-        //     //
-        //     PAssert.that(entityFieldMinMaxSum.get("max")).containsInAnyOrder(KV_ARRAY);
-
-        //     //
-        //     KV_ARRAY.clear();
-        //     KV_ARRAY.add(KV.of("service_-query_-staging-pubsub.sandbox.googleapis.com", 44.0));
-        //     KV_ARRAY.add(KV.of("service_-query_-staging-storage.sandbox.googleapis.com", 56.0));
-        //     KV_ARRAY.add(KV.of("service_-status-staging-pubsub.sandbox.googleapis.com", 4.0));
-        //     KV_ARRAY.add(KV.of("service_-check_-staging-pubsub.sandbox.googleapis.com", 8.0));
-        //     //
-        //     PAssert.that(entityFieldMinMaxSum.get("sum")).containsInAnyOrder(KV_ARRAY);
-
-        //     //
-        //     KV_ARRAY.clear();
-        //     KV_ARRAY.add(KV.of("service_-query_-staging-pubsub.sandbox.googleapis.com", 4.4));
-        //     KV_ARRAY.add(KV.of("service_-query_-staging-storage.sandbox.googleapis.com", 5.6));
-        //     //
-        //     PAssert.that(entityFieldPerInteval).containsInAnyOrder(KV_ARRAY);
-
-        //     //
-        //     KV_ARRAY.clear();
-        //     KV_ARRAY.add(KV.of("service_-query_-staging-pubsub.sandbox.googleapis.com", 0.25));
-        //     KV_ARRAY.add(KV.of("service_-query_-staging-storage.sandbox.googleapis.com", 0.54));
-        //     //
-        //     PAssert.that(entityFieldDev).containsInAnyOrder(KV_ARRAY);
-
-        //     //
-        //     KV_ARRAY.clear();
-        //     KV_ARRAY.add(KV.of("service_-query_-staging-pubsub.sandbox.googleapis.com", 0.18));
-        //     //
-        //     PAssert.that(serviceCheckRatio).containsInAnyOrder(KV_ARRAY);
-
-        //     //
-        //     KV_ARRAY.clear();
-        //     //
-        //     PAssert.that(serviceQuotaRatio).containsInAnyOrder(KV_ARRAY);
-
-        //     //
-        //     KV_ARRAY.clear();
-        //     KV_ARRAY.add(KV.of("service_-query_-staging-pubsub.sandbox.googleapis.com", 0.09));
-        //     //
-        //     PAssert.that(serviceStatusRatio).containsInAnyOrder(KV_ARRAY);
-        // }
-
+    
         /* (5) Store to BigQuery */
         System.out.println("GCS temp location to store temp files for BigQuery: " + bqTempLocation + "\n");
 
