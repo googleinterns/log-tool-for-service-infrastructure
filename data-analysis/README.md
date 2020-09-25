@@ -1,4 +1,4 @@
-With Dataflow processing log data and extracting features, follow-up data analysis is performed in AI platform:
+With Dataflow processing log data and extracting features, follow-up data analysis is performed in AI Platform:
 - import data/features from BigQuery to Jupyter notebook instances;
 - visualize data and select features;
 - apply machine learning approaches to detect anomalies;
