@@ -6,8 +6,8 @@ With Dataflow processing log data and extracting features, follow-up data analys
 - make predictions with deployed models.
 
 Two examples are discussed in this part: 
-- time range of log data is 1 second, aggregation interval is 1 second, and the model adopts a point data view;
-- time range of log data is about 1 week, aggregation interval is 5 minutes, and the model adopts a time series data view.
+- time range of log data is 1 second, aggregation interval is 1 second, and the model uses a point data view;
+- time range of log data is about 1 week, aggregation interval is 5 minutes, and the model uses a time series data view.
 
 ****
 The overview of doscussed models in our framework (not all of them are shown in the notebooks) is shown in the following figure:
