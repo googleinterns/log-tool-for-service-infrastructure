@@ -18,5 +18,5 @@ This tool will be running against logs extracted from non-prod environment with 
 
 ****
 
-The high-level workflow of this project is as follows
+The high-level workflow of this project can be shown as the follwing flowchart:
 ![high-level flowchart](https://github.com/googleinterns/log-tool-for-service-infrastructure/blob/master/docs/images/High-level-flowchart.png?raw=true)
