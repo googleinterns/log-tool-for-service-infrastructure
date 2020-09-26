@@ -10,5 +10,5 @@ Two examples are discussed in this part:
 - time range of log data is about 1 week, aggregation interval is 5 minutes, and the model adopts a time series data view.
 
 ****
-The ovewview of explored models in our framework can be shown in the following figure:
+The overview of doscussed models in our framework (not all of them are shown in the notebooks) is shown in the following figure:
 ![high-level flowchart](https://github.com/googleinterns/log-tool-for-service-infrastructure/blob/master/docs/images/Models.png?raw=true)
